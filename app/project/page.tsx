@@ -5,7 +5,7 @@ import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon } fr
 import axios from 'axios'
 import { useAuthStore } from '@/stores/authStore';
 import { InfoMessage, SuccessMessage, WarningMessage, ErrorMessage } from '@/utils/message'
-import { LoadingSpinner, WithLoading } from '@/utils/loading';
+import { WithLoading } from '@/utils/loading';
 import React from 'react'
 
 type Project = {
@@ -32,31 +32,31 @@ type FakeDataResponse = {
 }
 
 
-const generateFakeData = (page: number, perPage: number): FakeDataResponse => {
-  const totalItems = 50
-  const items: Project[] = Array.from({ length: Math.min(perPage, totalItems - (page - 1) * perPage) }, (_, index) => ({
-    id: `RECORD_ID_${(page - 1) * perPage + index + 1}`,
-    collectionId: "w70knkydg6hxho5",
-    collectionName: "ait_whm_projects",
-    created: new Date().toISOString(),
-    updated: new Date().toISOString(),
-    name: `Project ${(page - 1) * perPage + index + 1}`,
-    start_time: new Date().toISOString(),
-    end_time: new Date(Date.now() + 86400000).toISOString(),
-    description: `Description for Project ${(page - 1) * perPage + index + 1}`,
-    enable: Math.random() > 0.5,
-    note: `Note for Project ${(page - 1) * perPage + index + 1}`,
-    own_tasks: ["RELATION_RECORD_ID_1", "RELATION_RECORD_ID_2"]
-  }))
+// const generateFakeData = (page: number, perPage: number): FakeDataResponse => {
+//   const totalItems = 50
+//   const items: Project[] = Array.from({ length: Math.min(perPage, totalItems - (page - 1) * perPage) }, (_, index) => ({
+//     id: `RECORD_ID_${(page - 1) * perPage + index + 1}`,
+//     collectionId: "w70knkydg6hxho5",
+//     collectionName: "ait_whm_projects",
+//     created: new Date().toISOString(),
+//     updated: new Date().toISOString(),
+//     name: `Project ${(page - 1) * perPage + index + 1}`,
+//     start_time: new Date().toISOString(),
+//     end_time: new Date(Date.now() + 86400000).toISOString(),
+//     description: `Description for Project ${(page - 1) * perPage + index + 1}`,
+//     enable: Math.random() > 0.5,
+//     note: `Note for Project ${(page - 1) * perPage + index + 1}`,
+//     own_tasks: ["RELATION_RECORD_ID_1", "RELATION_RECORD_ID_2"]
+//   }))
 
-  return {
-    page,
-    perPage,
-    totalPages: Math.ceil(totalItems / perPage),
-    totalItems,
-    items
-  }
-}
+//   return {
+//     page,
+//     perPage,
+//     totalPages: Math.ceil(totalItems / perPage),
+//     totalItems,
+//     items
+//   }
+// }
 
 const GlobalStyles = () => {
   useEffect(() => {
@@ -138,7 +138,12 @@ export default function ProjectCRUD() {
       console.log(response.data);
       items = response.data.records.items;
     } catch (error) {
-      setMessage({ type: 'error', content: '登入失敗，請檢查帳號或密碼' })
+      // 使用類型縮小來處理錯誤
+      if (error instanceof Error) {
+        setMessage({ type: 'error', content: error.message })
+      } else {
+        setMessage({ type: 'error', content: '系統繁忙中，請稍後在試' })
+      }
     }finally {
       setLoading(false)
     }

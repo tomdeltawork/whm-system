@@ -9,8 +9,6 @@ export async function POST(request: Request) {
     //Step1.  get data
     const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL);
     const data = await request.json();
-    const email = data.email;
-    const password = data.password;
     const register_data = {
         "username": data.username,
         "email": data.email,

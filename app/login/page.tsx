@@ -1,11 +1,11 @@
 'use client'
 
-import { useState , useRef } from 'react'
+import { useState } from 'react'
 import { EyeIcon, EyeOffIcon } from 'lucide-react'
 import axios from 'axios'
 import { useRouter } from 'next/navigation'
 import { InfoMessage, SuccessMessage, WarningMessage, ErrorMessage } from '@/utils/message'
-import { LoadingSpinner, WithLoading } from '@/utils/loading';
+import { WithLoading } from '@/utils/loading';
 import React from 'react'
 import { useAuthStore } from '@/stores/authStore';
 
@@ -13,7 +13,6 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
   const router = useRouter()
   const [message, setMessage] = useState<{ type: 'info' | 'success' | 'warning' | 'error', content: string } | null>(null)
   const [loading, setLoading] = useState(false)
@@ -26,11 +25,7 @@ export default function LoginPage() {
     error: ErrorMessage
   }
 
-  const handleLogin = async (e:any) => {
-
-    console.log("email : " + email);
-    console.log("password : " + password);
-
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       setLoading(true)
@@ -39,27 +34,23 @@ export default function LoginPage() {
       const userId = response.data.record.id;
       const username = response.data.record.username;
 
-      console.log('Login successful:', response.data)
-
       setAccessToken(accessToken);
       setUserId(userId);
       setUserName(username);
       setUserEmail(email);
 
       setMessage({ type: 'success', content: '登入成功!!' })
-      // router.push('/home')
       router.push('/project')
-      // setTimeout(() => {
-      //   router.push('/home')
-      // }, 1000);
-    } catch (error) {
-      //   setError('登入失敗，請檢查帳號或密碼')
-      // 使用 messageRef 顯示錯誤通知
-      setMessage({ type: 'error', content: '登入失敗，請檢查帳號或密碼' })
-    }finally {
+    } catch (error: unknown) {  // 將錯誤類型設為 unknown
+      // 使用類型縮小來處理錯誤
+      if (error instanceof Error) {
+        setMessage({ type: 'error', content: error.message })
+      } else {
+        setMessage({ type: 'error', content: '登入失敗，請檢查帳號或密碼' })
+      }
+    } finally {
       setLoading(false)
     }
-    
   }
   
 
@@ -140,10 +131,6 @@ export default function LoginPage() {
       <div>
         <WithLoading loading={loading}>
           <div></div>
-          {/* <div className="p-6 bg-white rounded shadow">
-            <h1 className="text-2xl font-bold">這是一個內容頁面</h1>
-            <p>加載結束後顯示此內容</p>
-          </div> */}
         </WithLoading>
       </div>
     </div>
