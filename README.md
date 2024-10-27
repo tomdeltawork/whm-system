@@ -8,3 +8,7 @@ First, run the development server:
 npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+
+## Note
+- You need to add the **.env.local** configuration file to the project information, and add NEXT_PUBLIC_POCKETBASE_URL to set the key value. The value is your own PocketBase URL. ex.NEXT_PUBLIC_POCKETBASE_URL=https://XXX.pockethost.io
