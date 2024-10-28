@@ -7,6 +7,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { InfoMessage, SuccessMessage, WarningMessage, ErrorMessage } from '@/utils/message'
 import { WithLoading } from '@/utils/loading';
 import React from 'react'
+import PocketBase, { RecordModel } from 'pocketbase';
 
 type Project = {
   id: string
@@ -119,51 +120,139 @@ export default function ProjectCRUD() {
     error: ErrorMessage
   }
   
-  const queryRealData = async (page: number, perPage: number): Promise<FakeDataResponse> => {
-    const totalItems = 50
-    const accessToken = useAuthStore.getState().accessToken;
-    
-    let items = [];
+  async function fetchData() {
+    const data = await queryRealData(currentPage, 10)
+    setProjects(data.items)
+    setTotalPages(data.totalPages)
+  }
+
+  async function updateProject (projectData: Partial<Project>) {
+    if (!currentProject) return
     try {
       setLoading(true)
-      const response = await axios.get('/api/projects', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        params: {
-          page: 1,
-          perPage: 10,
-        },
-      });
-      console.log(response.data);
-      items = response.data.records.items;
-    } catch (error) {
-      // 使用類型縮小來處理錯誤
-      if (error instanceof Error) {
-        setMessage({ type: 'error', content: error.message })
-      } else {
-        setMessage({ type: 'error', content: '系統繁忙中，請稍後在試' })
-      }
-    }finally {
+      // const data = {
+      //   "name": "fix success",
+      //   "start_time": "2022-01-01 10:00:00.123Z",
+      //   "end_time": "2022-01-01 10:00:00.123Z",
+      //   "description": "test",
+      //   "enable": true,
+      //   "note": "test",
+      //   // "own_tasks": [
+      //   //     "RELATION_RECORD_ID"
+      //   // ]
+      // };
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL);
+      // const record = await pb.collection('ait_whm_projects').update('jpnw0p0nc80g34b', data);
+      const record = await pb.collection('ait_whm_projects').update(currentProject.id, projectData)
+      console.log("update data : " + record);
+      await fetchData();
+    } catch (error: any) {
+      console.error('PocketBase login error : ', error);
+      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+    } finally {
       setLoading(false)
     }
+  }
+
+  // async function insertProject(projectData: Omit<Project, 'id' | 'collectionId' | 'collectionName' | 'created' | 'updated'>) {
+  async function insertProject (projectData: Partial<Project>) {
+      try {
+        setLoading(true)
+        // const data = {
+        //   "name": "test",
+        //   "start_time": "2022-01-01 10:00:00.123Z",
+        //   "end_time": "2022-01-01 10:00:00.123Z",
+        //   "description": "test",
+        //   "enable": true,
+        //   "note": "test",
+        //   // "own_tasks": [
+        //   //     "RELATION_RECORD_ID"
+        //   // ]
+        // };
+        const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL);
+        // const record = await pb.collection('ait_whm_projects').create(data);
+        const record = await pb.collection('ait_whm_projects').create(projectData)
+        console.log("insert data : " + record);
+        await fetchData();
+      } catch (error: any) {
+        console.error('PocketBase login error : ', error);
+        setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      } finally {
+        setLoading(false)
+      }
+  }
   
+  async function deleteProject (project_id: string) {
+    try {
+      setLoading(true)
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL);
+      await pb.collection('ait_whm_projects').delete(project_id);
+      await fetchData();
+    } catch (error: any) {
+      console.error('PocketBase login error : ', error);
+      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+
+  async function queryRealData(page: number, perPage: number): Promise<FakeDataResponse> {
+
+    let items: any = [];
+    const totalItems = 50;
+    try {
+      setLoading(true);
+      const accessToken = useAuthStore.getState().accessToken;
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL);
+      const records = await pb.collection('ait_whm_projects').getList();
+      items = records.items;
+    } catch (error: any) {
+      console.error('PocketBase login error : ', error);
+      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' });
+    } finally {
+      setLoading(false);
+    }
+
+
+    // const totalItems = 50
+    // const accessToken = useAuthStore.getState().accessToken;
+    // const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL);
+    // const records = await pb.collection('ait_whm_projects').getList();
+    // let items = [];
+    // try {
+    //   setLoading(true)
+    //   const response = await axios.get('/api/projects', {
+    //     headers: {
+    //       Authorization: `Bearer ${accessToken}`,
+    //     },
+    //     params: {
+    //       page: 1,
+    //       perPage: 10,
+    //     },
+    //   });
+    //   console.log(response.data);
+    //   items = response.data.records.items;
+    // } catch (error) {
+    //   // 使用類型縮小來處理錯誤
+    //   if (error instanceof Error) {
+    //     setMessage({ type: 'error', content: error.message })
+    //   } else {
+    //     setMessage({ type: 'error', content: '系統繁忙中，請稍後在試' })
+    //   }
+    // }finally {
+    //   setLoading(false)
+    // }
     return {
       page,
       perPage,
       totalPages: Math.ceil(totalItems / perPage),
       totalItems,
       items
-    }
+    };
   }
 
   useEffect(() => {
-    async function fetchData() {
-      const data = await queryRealData(currentPage, 10)
-      setProjects(data.items)
-      setTotalPages(data.totalPages)
-    }
-    
     fetchData();
   }, [currentPage])
 
@@ -201,12 +290,27 @@ export default function ProjectCRUD() {
     setIsEditModalOpen(false);
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>, isEdit: boolean) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>, isEdit: boolean) => {
     e.preventDefault()
-    // This is where you would handle form submission
+
+    const form = e.currentTarget
+    const formData = new FormData(form)
+    const projectData = {
+      name: formData.get('name') as string,
+      start_time: formData.get('start_time') as string,
+      end_time: formData.get('end_time') as string,
+      description: formData.get('description') as string,
+      enable: formData.get('enable') === 'true',
+      note: formData.get('note') as string,
+      own_tasks: formData.get('own_tasks') ? (formData.get('own_tasks') as string).split(',') : undefined,
+    }
+
+
     if (isEdit) {
+      await updateProject(projectData);
       closeEditModal();
     } else {
+      await insertProject(projectData);
       closeAddModal();
     }
   }
@@ -299,9 +403,9 @@ export default function ProjectCRUD() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-8">
+    <div className="min-h-screen bg-gray-100">
       <GlobalStyles />
-      <div className="max-w-6xl mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="mx-auto bg-white rounded-lg shadow-md overflow-hidden">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
@@ -340,7 +444,7 @@ export default function ProjectCRUD() {
                       <button onClick={() => openEditModal(project)} className="text-indigo-600 hover:text-indigo-900 mr-4 transition duration-300 ease-in-out">
                         <PencilIcon className="w-5 h-5" />
                       </button>
-                      <button className="text-red-600 hover:text-red-900 transition duration-300 ease-in-out">
+                      <button onClick={() => deleteProject(project.id)} className="text-red-600 hover:text-red-900 transition duration-300 ease-in-out">
                         <TrashIcon className="w-5 h-5" />
                       </button>
                     </td>
