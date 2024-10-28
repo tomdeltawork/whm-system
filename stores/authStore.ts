@@ -7,6 +7,7 @@ interface AuthState {
   userId: string | null;
   userName: string | null;
   userEmail: string | null;
+  loginType: string | null;
   setAccessToken: (token: string) => void;
   getAccessToken: () => string | null;
   setUserId: (id: string) => void;
@@ -15,6 +16,8 @@ interface AuthState {
   getUserName: () => string | null;
   setUserEmail: (email: string) => void;
   getUserEmail: () => string | null;
+  setLoginType: (loginType: string) => void;
+  getLoginType: () => string | null;
   clearAuth: () => void;
 }
 
@@ -25,6 +28,7 @@ export const useAuthStore = create<AuthState>()(
       userId: null,
       userName: null,
       userEmail: null,
+      loginType: null,
       //
       setAccessToken: (token) => set({ accessToken: token }),
       getAccessToken: () => get().accessToken,
@@ -38,7 +42,10 @@ export const useAuthStore = create<AuthState>()(
       setUserEmail: (email) => set({ userEmail: email }),
       getUserEmail: () => get().userEmail,
       //
-      clearAuth: () => set({ accessToken: null, userId: null, userName: null, userEmail: null}),
+      setLoginType: (loginType) => set({ loginType: loginType }),
+      getLoginType: () => get().loginType,
+      //
+      clearAuth: () => set({ accessToken: null, userId: null, userName: null, userEmail: null, loginType: null}),
     }),
     {
       name: 'auth-storage', // 存儲鍵名
