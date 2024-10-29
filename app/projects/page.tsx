@@ -1,12 +1,33 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import { useState, useEffect, Fragment } from 'react'
+import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, CheckIcon } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { InfoMessage, SuccessMessage, WarningMessage, ErrorMessage } from '@/utils/message'
 import { WithLoading } from '@/utils/loading'
+import { Listbox, Transition } from '@headlessui/react'
+import PocketBase, { RecordModel } from 'pocketbase'
 import React from 'react'
-import PocketBase from 'pocketbase'
+
+const FallbackMessage = ({ message, duration, onClose }: { message: string, duration: number, onClose: () => void }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, duration);
+    return () => clearTimeout(timer);
+  }, [duration, onClose]);
+
+  return (
+    <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4" role="alert">
+      <p>{message}</p>
+    </div>
+  );
+};
+
+const MessageComponent = {
+  info: InfoMessage || FallbackMessage,
+  success: SuccessMessage || FallbackMessage,
+  warning: WarningMessage || FallbackMessage,
+  error: ErrorMessage || FallbackMessage
+};
 
 type Project = {
   id: string
@@ -86,14 +107,9 @@ export default function ProjectCRUD() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
+  const [selectedTasks, setSelectedTasks] = useState<Task[]>([])
   const [message, setMessage] = useState<{ type: 'info' | 'success' | 'warning' | 'error', content: string } | null>(null)
   const [loading, setLoading] = useState(false)
-  const MessageComponent = {
-    info: InfoMessage,
-    success: SuccessMessage,
-    warning: WarningMessage,
-    error: ErrorMessage
-  }
   
   async function fetchData() {
     const data = await queryRealData(currentPage, 10)
@@ -108,7 +124,20 @@ export default function ProjectCRUD() {
       const records = await pb.collection('ait_whm_tasks').getList(1, 50, {
         sort: 'name',
       })
-      setTasks(records.items)
+
+      // 將 RecordModel[] 轉換為符合 Task[] 結構的資料
+      const formattedTasks: Task[] = records.items.map((record: RecordModel) => ({
+        id: record.id,
+        collectionId: record.collectionId,
+        collectionName: record.collectionName,
+        created: record.created,
+        updated: record.updated,
+        name: record.name,
+        note: record.note,
+        type: 'default' // 可以依需求設定默認值或從其他來源取得
+      }))
+
+      setTasks(formattedTasks)
     } catch (error: any) {
       console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
@@ -217,11 +246,13 @@ export default function ProjectCRUD() {
   }
 
   const openAddModal = () => {
+    setSelectedTasks([])
     setIsAddModalOpen(true)
   }
 
   const openEditModal = (project: Project) => {
     setCurrentProject(project)
+    setSelectedTasks(tasks.filter(task => project.own_tasks.includes(task.id)))
     setIsEditModalOpen(true)
   }
 
@@ -231,6 +262,7 @@ export default function ProjectCRUD() {
 
   const closeEditModal = () => {
     setCurrentProject(null)
+    setSelectedTasks([])
     setIsEditModalOpen(false)
   }
 
@@ -247,7 +279,7 @@ export default function ProjectCRUD() {
       start_time: start_time.toISOString(),
       end_time: end_time.toISOString(),
       note: formData.get('note') as string,
-      own_tasks: formData.getAll('own_tasks') as string[],
+      own_tasks: selectedTasks.map(task => task.id),
     }
     if (isEdit) {
       await updateProject(projectData)
@@ -331,22 +363,65 @@ export default function ProjectCRUD() {
                 defaultValue={isEdit ? currentProject?.note : ''}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 rows={3}
+              
               ></textarea>
             </div>
             <div className="mb-3">
-              <label htmlFor="own_tasks" className="block text-xs font-medium text-gray-700">Tasks</label>
-              <select
-                multiple
-                
-                id="own_tasks"
-                name="own_tasks"
-                defaultValue={isEdit ? currentProject?.own_tasks : []}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-              >
-                {tasks.map((task) => (
-                  <option key={task.id} value={task.id}>{task.name}</option>
-                ))}
-              </select>
+              <label htmlFor="own_tasks" className="block text-xs font-medium text-gray-700 mb-1">Tasks</label>
+              <Listbox value={selectedTasks} onChange={setSelectedTasks} multiple>
+                <div className="relative mt-1">
+                  <Listbox.Button className="relative w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-md focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-300 sm:text-sm">
+                    <span className="block truncate">
+                      {selectedTasks.length === 0
+                        ? 'Select tasks'
+                        : `${selectedTasks.length} task${selectedTasks.length > 1 ? 's' : ''} selected`}
+                    </span>
+                    <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                      <ChevronLeftIcon
+                        className="h-5 w-5 text-gray-400"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </Listbox.Button>
+                  <Transition
+                    as={Fragment}
+                    leave="transition ease-in duration-100"
+                    leaveFrom="opacity-100"
+                    leaveTo="opacity-0"
+                  >
+                    <Listbox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                      {tasks.map((task) => (
+                        <Listbox.Option
+                          key={task.id}
+                          className={({ active }: { active: boolean }) =>
+                            `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                              active ? 'bg-amber-100 text-amber-900' : 'text-gray-900'
+                            }`
+                          }
+                          value={task}
+                        >
+                          {({ selected }: { selected: boolean }) => (
+                            <>
+                              <span
+                                className={`block truncate ${
+                                  selected ? 'font-medium' : 'font-normal'
+                                }`}
+                              >
+                                {task.name}
+                              </span>
+                              {selected ? (
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-amber-600">
+                                  <CheckIcon className="h-5 w-5" aria-hidden="true" />
+                                </span>
+                              ) : null}
+                            </>
+                          )}
+                        </Listbox.Option>
+                      ))}
+                    </Listbox.Options>
+                  </Transition>
+                </div>
+              </Listbox>
             </div>
             <div className="flex justify-end space-x-3">
               <button

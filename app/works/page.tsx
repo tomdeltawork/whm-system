@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
+import { useState, useEffect, Fragment } from 'react'
+import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, CheckIcon, XIcon } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { InfoMessage, SuccessMessage, WarningMessage, ErrorMessage } from '@/utils/message'
 import { WithLoading } from '@/utils/loading'
+import { Listbox, Transition } from '@headlessui/react'
+import PocketBase, { RecordModel } from 'pocketbase'
 import React from 'react'
-import PocketBase from 'pocketbase'
 
 type Work = {
   id: string
@@ -22,6 +23,48 @@ type Work = {
   own_tasks: string
   start_date: string
   end_date: string
+  attach_files: string[]
+  expand?: {
+    attach_files: File[]
+    own_projects: Project
+    own_tasks: Task
+  }
+}
+
+type Project = {
+  id: string
+  collectionId: string
+  collectionName: string
+  created: string
+  updated: string
+  name: string
+  start_time: string
+  end_time: string
+  description: string
+  enable: boolean
+  note: string
+  own_tasks: string[]
+}
+
+type Task = {
+  id: string
+  collectionId: string
+  collectionName: string
+  created: string
+  updated: string
+  name: string
+  note: string
+  type: string
+}
+
+type File = {
+  id: string
+  collectionId: string
+  collectionName: string
+  created: string
+  updated: string
+  file: string
+  note: string
 }
 
 type FakeDataResponse = {
@@ -68,26 +111,105 @@ const GlobalStyles = () => {
   return null
 }
 
+const FallbackMessage = ({ message, duration, onClose }: { message: string, duration: number, onClose: () => void }) => {
+  useEffect(() => {
+    const timer = setTimeout(onClose, duration);
+    return () => clearTimeout(timer);
+  }, [duration, onClose]);
+
+  return (
+    <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4" role="alert">
+      <p>{message}</p>
+    </div>
+  );
+};
+
+const MessageComponent = {
+  info: InfoMessage || FallbackMessage,
+  success: SuccessMessage || FallbackMessage,
+  warning: WarningMessage || FallbackMessage,
+  error: ErrorMessage || FallbackMessage
+};
+
 export default function WorkCRUD() {
   const [works, setWorks] = useState<Work[]>([])
+  const [projects, setProjects] = useState<Project[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [currentWork, setCurrentWork] = useState<Work | null>(null)
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const [message, setMessage] = useState<{ type: 'info' | 'success' | 'warning' | 'error', content: string } | null>(null)
   const [loading, setLoading] = useState(false)
-  const MessageComponent = {
-    info: InfoMessage,
-    success: SuccessMessage,
-    warning: WarningMessage,
-    error: ErrorMessage
-  }
-  
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([])
+
   async function fetchData() {
     const data = await queryRealData(currentPage, 10)
     setWorks(data.items)
     setTotalPages(data.totalPages)
+  }
+
+  async function fetchProjects() {
+    try {
+      setLoading(true)
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+      const records = await pb.collection('ait_whm_projects').getList(1, 50, {
+        sort: 'name',
+      })
+
+      const formattedProjects: Project[] = records.items.map((record: RecordModel) => ({
+        id: record.id,
+        collectionId: record.collectionId,
+        collectionName: record.collectionName,
+        created: record.created,
+        updated: record.updated,
+        name: record.name,
+        start_time: record.start_time,
+        end_time: record.end_time,
+        description: record.description,
+        enable: record.enable,
+        note: record.note,
+        own_tasks: record.own_tasks,
+      }))
+
+      setProjects(formattedProjects)
+    } catch (error: any) {
+      console.error('PocketBase error : ', error)
+      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function fetchTasks() {
+    try {
+      setLoading(true)
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+      const records = await pb.collection('ait_whm_tasks').getList(1, 50, {
+        sort: 'name',
+      })
+
+      const formattedTasks: Task[] = records.items.map((record: RecordModel) => ({
+        id: record.id,
+        collectionId: record.collectionId,
+        collectionName: record.collectionName,
+        created: record.created,
+        updated: record.updated,
+        name: record.name,
+        note: record.note,
+        type: 'default'
+      }))
+      
+      setTasks(formattedTasks)
+    } catch (error: any) {
+      console.error('PocketBase error : ', error)
+      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function updateWork(workData: Partial<Work>) {
@@ -143,7 +265,7 @@ export default function WorkCRUD() {
       const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
       const records = await pb.collection('ait_whm_works').getList(page, perPage, {
         sort: '-created',
-        expand: 'own_users,own_projects,own_tasks',
+        expand: 'own_users,own_projects,own_tasks,attach_files',
       })
       items = records.items
       return {
@@ -170,6 +292,8 @@ export default function WorkCRUD() {
 
   useEffect(() => {
     fetchData()
+    fetchProjects()
+    fetchTasks()
   }, [currentPage])
 
   useEffect(() => {
@@ -189,11 +313,17 @@ export default function WorkCRUD() {
   }
 
   const openAddModal = () => {
+    setSelectedProject(null)
+    setSelectedTask(null)
+    setAttachedFiles([])
     setIsAddModalOpen(true)
   }
 
   const openEditModal = (work: Work) => {
     setCurrentWork(work)
+    setSelectedProject(projects.find(p => p.id === work.own_projects) || null)
+    setSelectedTask(tasks.find(t => t.id === work.own_tasks) || null)
+    setAttachedFiles(work.expand?.attach_files || [])
     setIsEditModalOpen(true)
   }
 
@@ -203,7 +333,48 @@ export default function WorkCRUD() {
 
   const closeEditModal = () => {
     setCurrentWork(null)
+    setSelectedProject(null)
+    setSelectedTask(null)
+    setAttachedFiles([])
     setIsEditModalOpen(false)
+  }
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files
+    if (!files) return
+
+    try {
+      setLoading(true)
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+      
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData()
+        formData.append('file', files[i])
+        
+        const record = await pb.collection('ait_whm_files').create(formData)
+        
+        setAttachedFiles(prev => [...prev, {
+          id: record.id,
+          collectionId: record.collectionId,
+          collectionName: record.collectionName,
+          created: record.created,
+          updated: record.updated,
+          file: record.file,
+          note: record.note || ''
+        }])
+      }
+      
+      setMessage({ type: 'success', content: 'Files uploaded successfully' })
+    } catch (error: any) {
+      console.error('File upload error:', error)
+      setMessage({ type: 'error', content: 'Failed to upload files' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleFileRemove = (fileId: string) => {
+    setAttachedFiles(prev => prev.filter(file => file.id !== fileId))
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>, isEdit: boolean) => {
@@ -212,21 +383,23 @@ export default function WorkCRUD() {
     const formData = new FormData(form)
     const workData = {
       name: formData.get('name') as string,
-      own_users: formData.get('own_users') as string,
-      own_projects: formData.get('own_projects') as string,
+      own_users: 'iq749xom8psrtt5', // Hardcoded value as requested
+      own_projects: selectedProject?.id || '',
       note: formData.get('note') as string,
       hour: parseFloat(formData.get('hour') as string),
-      own_tasks: formData.get('own_tasks') as string,
+      own_tasks: selectedTask?.id || '',
       start_date: new Date(formData.get('start_date') as string).toISOString(),
       end_date: new Date(formData.get('end_date') as string).toISOString(),
+      attach_files: attachedFiles.map(file => file.id)
     }
     if (isEdit) {
-      await updateWork(workData)
+      await  updateWork(workData)
       closeEditModal()
     } else {
       await insertWork(workData)
       closeAddModal()
     }
+    setAttachedFiles([])
   }
 
   const renderModal = (isEdit: boolean) => {
@@ -249,26 +422,57 @@ export default function WorkCRUD() {
               />
             </div>
             <div className="mb-3">
-              <label htmlFor="own_users" className="block text-xs font-medium text-gray-700">User</label>
-              <input
-                type="text"
-                id="own_users"
-                name="own_users"
-                defaultValue={isEdit ? currentWork?.own_users : ''}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                required
-              />
-            </div>
-            <div className="mb-3">
               <label htmlFor="own_projects" className="block text-xs font-medium text-gray-700">Project</label>
-              <input
-                type="text"
-                id="own_projects"
-                name="own_projects"
-                defaultValue={isEdit ? currentWork?.own_projects : ''}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                required
-              />
+              <Listbox value={selectedProject} onChange={setSelectedProject}>
+                <div className="relative mt-1">
+                  <Listbox.Button className="relative w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-md focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-300 sm:text-sm">
+                    <span className="block truncate">{selectedProject?.name || 'Select a project'}</span>
+                    <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                      <ChevronLeftIcon
+                        className="h-5 w-5 text-gray-400"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </Listbox.Button>
+                  <Transition
+                    as={Fragment}
+                    leave="transition ease-in duration-100"
+                    leaveFrom="opacity-100"
+                    leaveTo="opacity-0"
+                  >
+                    <Listbox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                      {projects.map((project) => (
+                        <Listbox.Option
+                          key={project.id}
+                          className={({ active }) =>
+                            `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                              active ? 'bg-amber-100 text-amber-900' : 'text-gray-900'
+                            }`
+                          }
+                          value={project}
+                        >
+                          {({ selected }) => (
+                            <>
+                              <span
+                                className={`block truncate ${
+                                  selected ? 'font-medium' : 'font-normal'
+                                }`}
+                              >
+                                {project.name}
+                              </span>
+                              {selected ? (
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-amber-600">
+                                  <CheckIcon className="h-5 w-5" aria-hidden="true" />
+                                </span>
+                              ) : null}
+                            </>
+                          )}
+                        </Listbox.Option>
+                      ))}
+                    </Listbox.Options>
+                  </Transition>
+                </div>
+              </Listbox>
             </div>
             <div className="mb-3">
               <label htmlFor="note" className="block text-xs font-medium text-gray-700">Note</label>
@@ -294,14 +498,56 @@ export default function WorkCRUD() {
             </div>
             <div className="mb-3">
               <label htmlFor="own_tasks" className="block text-xs font-medium text-gray-700">Task</label>
-              <input
-                type="text"
-                id="own_tasks"
-                name="own_tasks"
-                defaultValue={isEdit ? currentWork?.own_tasks : ''}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                required
-              />
+              <Listbox value={selectedTask} onChange={setSelectedTask}>
+                <div className="relative mt-1">
+                  <Listbox.Button className="relative w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-md focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-300 sm:text-sm">
+                    <span className="block truncate">{selectedTask?.name || 'Select a task'}</span>
+                    <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                      <ChevronLeftIcon
+                        className="h-5 w-5 text-gray-400"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </Listbox.Button>
+                  <Transition
+                    as={Fragment}
+                    leave="transition ease-in duration-100"
+                    leaveFrom="opacity-100"
+                    leaveTo="opacity-0"
+                  >
+                    <Listbox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                      {tasks.map((task) => (
+                        <Listbox.Option
+                          key={task.id}
+                          className={({ active }) =>
+                            `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                              active ? 'bg-amber-100 text-amber-900' : 'text-gray-900'
+                            }`
+                          }
+                          value={task}
+                        >
+                          {({ selected }) => (
+                            <>
+                              <span
+                                className={`block truncate ${
+                                  selected ? 'font-medium' : 'font-normal'
+                                }`}
+                              >
+                                {task.name}
+                              </span>
+                              {selected ? (
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-amber-600">
+                                  <CheckIcon className="h-5 w-5" aria-hidden="true" />
+                                </span>
+                              ) : null}
+                            </>
+                          )}
+                        </Listbox.Option>
+                      ))}
+                    </Listbox.Options>
+                  </Transition>
+                </div>
+              </Listbox>
             </div>
             <div className="mb-3">
               <label htmlFor="start_date" className="block text-xs font-medium text-gray-700">Start Date</label>
@@ -325,10 +571,51 @@ export default function WorkCRUD() {
                 required
               />
             </div>
+            <div className="mb-3">
+              <label htmlFor="file-upload" className="block text-xs font-medium text-gray-700">Attach Files</label>
+              <input
+                type="file"
+                id="file-upload"
+                onChange={handleFileUpload}
+                multiple
+                className="mt-1 block w-full text-sm text-gray-500
+                  file:mr-4 file:py-2 file:px-4
+                  file:rounded-full file:border-0
+                  file:text-sm file:font-semibold
+                  file:bg-blue-50 file:text-blue-700
+                  hover:file:bg-blue-100"
+              />
+            </div>
+            
+            {attachedFiles.length > 0 && (
+              <div className="mb-3">
+                <h3 className="text-xs font-medium text-gray-700 mb-2">Attached Files:</h3>
+                <ul className="space-y-2">
+                  {attachedFiles.map(file => (
+                    <li key={file.id} className="flex items-center justify-between bg-gray-100 p-2 rounded">
+                      <div className="flex items-center space-x-2">
+                        <img
+                          src={`https://tomdeltawork.pockethost.io/api/files/${file.collectionId}/${file.id}/${file.file}`}
+                          alt={file.file}
+                          className="w-10 h-10 object-cover rounded"
+                        />
+                        <span className="text-xs truncate">{file.file}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleFileRemove(file.id)}
+                        className="text-red-600 hover:text-red-800"
+                      >
+                        <XIcon className="w-4 h-4" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="flex justify-end space-x-3">
               <button
                 type="button"
-                
                 onClick={closeModal}
                 className="px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300 ease-in-out"
               >
@@ -368,8 +655,8 @@ export default function WorkCRUD() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
@@ -380,8 +667,8 @@ export default function WorkCRUD() {
                 {works.map((work) => (
                   <tr key={work.id}>
                     <td className="px-4 py-2 whitespace-nowrap">{work.name}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{work.own_users}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{work.own_projects}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{work.expand?.own_projects?.name || 'N/A'}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{work.expand?.own_tasks?.name || 'N/A'}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{work.hour}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{new Date(work.start_date).toLocaleString()}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{new Date(work.end_date).toLocaleString()}</td>
