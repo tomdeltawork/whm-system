@@ -8,15 +8,15 @@ import { WithLoading } from '@/utils/loading'
 import React from 'react'
 import PocketBase from 'pocketbase'
 
-type Project = {
+type Task = {
   id: string
+  collectionId: string
+  collectionName: string
+  created: string
+  updated: string
   name: string
-  start_time: string
-  end_time: string
-  description: string
-  enable: boolean
   note: string
-  own_tasks: string[]
+  type: string
 }
 
 type FakeDataResponse = {
@@ -24,7 +24,7 @@ type FakeDataResponse = {
   perPage: number
   totalPages: number
   totalItems: number
-  items: Project[]
+  items: Task[]
 }
 
 const GlobalStyles = () => {
@@ -63,13 +63,13 @@ const GlobalStyles = () => {
   return null
 }
 
-export default function ProjectCRUD() {
-  const [projects, setProjects] = useState<Project[]>([])
+export default function TaskCRUD() {
+  const [tasks, setTasks] = useState<Task[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [currentProject, setCurrentProject] = useState<Project | null>(null)
+  const [currentTask, setCurrentTask] = useState<Task | null>(null)
   const [message, setMessage] = useState<{ type: 'info' | 'success' | 'warning' | 'error', content: string } | null>(null)
   const [loading, setLoading] = useState(false)
   const MessageComponent = {
@@ -81,49 +81,49 @@ export default function ProjectCRUD() {
   
   async function fetchData() {
     const data = await queryRealData(currentPage, 10)
-    setProjects(data.items)
+    setTasks(data.items)
     setTotalPages(data.totalPages)
   }
 
-  async function updateProject(projectData: Partial<Project>) {
-    if (!currentProject) return
+  async function updateTask(taskData: Partial<Task>) {
+    if (!currentTask) return
     try {
       setLoading(true)
       const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
-      const record = await pb.collection('ait_whm_projects').update(currentProject.id, projectData)
+      const record = await pb.collection('ait_whm_tasks').update(currentTask.id, taskData)
       console.log("update data : " + record)
       await fetchData()
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
     } finally {
       setLoading(false)
     }
   }
 
-  async function insertProject(projectData: Partial<Project>) {
+  async function insertTask(taskData: Partial<Task>) {
     try {
       setLoading(true)
       const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
-      const record = await pb.collection('ait_whm_projects').create(projectData)
+      const record = await pb.collection('ait_whm_tasks').create(taskData)
       console.log("insert data : " + record)
       await fetchData()
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
     } finally {
       setLoading(false)
     }
   }
   
-  async function deleteProject(project_id: string) {
+  async function deleteTask(task_id: string) {
     try {
       setLoading(true)
       const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
-      await pb.collection('ait_whm_projects').delete(project_id)
+      await pb.collection('ait_whm_tasks').delete(task_id)
       await fetchData()
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
     } finally {
       setLoading(false)
@@ -136,20 +136,29 @@ export default function ProjectCRUD() {
     try {
       setLoading(true)
       const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
-      const records = await pb.collection('ait_whm_projects').getList()
+      const records = await pb.collection('ait_whm_tasks').getList(page, perPage, {
+        sort: '-created',
+      })
       items = records.items
+      return {
+        page: records.page,
+        perPage: records.perPage,
+        totalPages: records.totalPages,
+        totalItems: records.totalItems,
+        items
+      }
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      return {
+        page,
+        perPage,
+        totalPages: Math.ceil(totalItems / perPage),
+        totalItems,
+        items
+      }
     } finally {
       setLoading(false)
-    }
-    return {
-      page,
-      perPage,
-      totalPages: Math.ceil(totalItems / perPage),
-      totalItems,
-      items
     }
   }
 
@@ -177,8 +186,8 @@ export default function ProjectCRUD() {
     setIsAddModalOpen(true)
   }
 
-  const openEditModal = (project: Project) => {
-    setCurrentProject(project)
+  const openEditModal = (task: Task) => {
+    setCurrentTask(task)
     setIsEditModalOpen(true)
   }
 
@@ -187,7 +196,7 @@ export default function ProjectCRUD() {
   }
 
   const closeEditModal = () => {
-    setCurrentProject(null)
+    setCurrentTask(null)
     setIsEditModalOpen(false)
   }
 
@@ -195,22 +204,16 @@ export default function ProjectCRUD() {
     e.preventDefault()
     const form = e.currentTarget
     const formData = new FormData(form)
-    const start_time = new Date(formData.get('start_time') as string)
-    const end_time = new Date(formData.get('end_time') as string)
-    const projectData = {
+    const taskData = {
       name: formData.get('name') as string,
-      start_time: start_time.toISOString(),
-      end_time: end_time.toISOString(),
-      description: formData.get('description') as string,
-      enable: formData.get('enable') === 'true',
       note: formData.get('note') as string,
-      own_tasks: formData.get('own_tasks') ? (formData.get('own_tasks') as string).split(',') : undefined,
+      type: formData.get('type') as string,
     }
     if (isEdit) {
-      await updateProject(projectData)
+      await updateTask(taskData)
       closeEditModal()
     } else {
-      await insertProject(projectData)
+      await insertTask(taskData)
       closeAddModal()
     }
   }
@@ -221,7 +224,7 @@ export default function ProjectCRUD() {
     return (
       <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 transition-all duration-300 ease-in-out ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
         <div className={`bg-white rounded-lg shadow-xl p-4 w-full max-w-md transform transition-all duration-300 ease-in-out ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
-          <h2 className="text-lg font-bold mb-3">{isEdit ? 'Edit Project' : 'Add New Project'}</h2>
+          <h2 className="text-lg font-bold mb-3">{isEdit ? 'Edit Task' : 'Add New Task'}</h2>
           <form onSubmit={(e) => handleSubmit(e, isEdit)} className="text-sm">
             <div className="mb-3">
               <label htmlFor="name" className="block text-xs font-medium text-gray-700">Name</label>
@@ -229,54 +232,33 @@ export default function ProjectCRUD() {
                 type="text"
                 id="name"
                 name="name"
-                defaultValue={isEdit ? currentProject?.name : ''}
+                defaultValue={isEdit ? currentTask?.name : ''}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 required
               />
             </div>
             <div className="mb-3">
-              <label htmlFor="start_time" className="block text-xs font-medium text-gray-700">Start Time</label>
-              <input
-                type="date"
-                id="start_time"
-                name="start_time"
-                defaultValue={isEdit ? currentProject?.start_time.split('.')[0] : ''}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                required
-              />
-            </div>
-            <div className="mb-3">
-              <label htmlFor="end_time" className="block text-xs font-medium text-gray-700">End Time</label>
-              <input
-                type="date"
-                id="end_time"
-                name="end_time"
-                defaultValue={isEdit ? currentProject?.end_time.split('.')[0] : ''}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                required
-              />
-            </div>
-            <div className="mb-3">
-              <label htmlFor="description" className="block text-xs font-medium text-gray-700">Description</label>
+              <label htmlFor="note" className="block text-xs font-medium text-gray-700">Note</label>
               <textarea
-                id="description"
-                name="description"
-                defaultValue={isEdit ? currentProject?.description : ''}
+                id="note"
+                name="note"
+                defaultValue={isEdit ? currentTask?.note : ''}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 rows={3}
               ></textarea>
             </div>
             <div className="mb-3 relative">
-              <label htmlFor="enable" className="block text-xs font-medium text-gray-700">Status</label>
+              <label htmlFor="type" className="block text-xs font-medium text-gray-700">Type</label>
               <div className="relative">
                 <select
-                  id="enable"
-                  name="enable"
-                  defaultValue={isEdit ? (currentProject?.enable ? 'true' : 'false') : 'true'}
+                  id="type"
+                  name="type"
+                  defaultValue={isEdit ? currentTask?.type : 'COMMON'}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 >
-                  <option value="true">Active</option>
-                  <option value="false">Inactive</option>
+                  <option value="COMMON">Common</option>
+                  <option value="URGENT">Urgent</option>
+                  <option value="IMPORTANT">Important</option>
                 </select>
               </div>
             </div>
@@ -307,13 +289,13 @@ export default function ProjectCRUD() {
       <div className="mx-auto bg-white rounded-lg shadow-md overflow-hidden">
         <div className="p-4">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-xl font-bold text-gray-900">Projects</h1>
+            <h1 className="text-xl font-bold text-gray-900">Tasks</h1>
             <button
               onClick={openAddModal}
               className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 flex items-center transition duration-300 ease-in-out"
             >
               <PlusIcon className="w-4 h-4 mr-1" />
-              Add Project
+              Add Task
             </button>
           </div>
 
@@ -322,28 +304,30 @@ export default function ProjectCRUD() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th  className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Time</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Time</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {projects.map((project) => (
-                  <tr key={project.id}>
-                    <td className="px-4 py-2 whitespace-nowrap">{project.name}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{new Date(project.start_time).toLocaleDateString()}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{new Date(project.end_time).toLocaleDateString()}</td>
+                {tasks.map((task) => (
+                  <tr key={task.id}>
+                    <td className="px-4 py-2 whitespace-nowrap">{task.name}</td>
                     <td className="px-4 py-2 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${project.enable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {project.enable ? 'Active' : 'Inactive'}
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        task.type === 'URGENT' ? 'bg-red-100 text-red-800' :
+                        task.type === 'IMPORTANT' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-green-100 text-green-800'
+                      }`}>
+                        {task.type}
                       </span>
                     </td>
+                    <td className="px-4 py-2 whitespace-nowrap">{new Date(task.created).toLocaleString()}</td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs font-medium">
-                      <button onClick={() => openEditModal(project)} className="text-indigo-600 hover:text-indigo-900 mr-3 transition duration-300 ease-in-out">
+                      <button onClick={() =>   openEditModal(task)} className="text-indigo-600 hover:text-indigo-900 mr-3 transition duration-300 ease-in-out">
                         <PencilIcon className="w-4 h-4" />
                       </button>
-                      <button onClick={() => deleteProject(project.id)} className="text-red-600 hover:text-red-900 transition duration-300 ease-in-out">
+                      <button onClick={() => deleteTask(task.id)} className="text-red-600 hover:text-red-900 transition duration-300 ease-in-out">
                         <TrashIcon className="w-4 h-4" />
                       </button>
                     </td>

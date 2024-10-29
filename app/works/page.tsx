@@ -8,15 +8,20 @@ import { WithLoading } from '@/utils/loading'
 import React from 'react'
 import PocketBase from 'pocketbase'
 
-type Project = {
+type Work = {
   id: string
+  collectionId: string
+  collectionName: string
+  created: string
+  updated: string
   name: string
-  start_time: string
-  end_time: string
-  description: string
-  enable: boolean
+  own_users: string
+  own_projects: string
   note: string
-  own_tasks: string[]
+  hour: number
+  own_tasks: string
+  start_date: string
+  end_date: string
 }
 
 type FakeDataResponse = {
@@ -24,7 +29,7 @@ type FakeDataResponse = {
   perPage: number
   totalPages: number
   totalItems: number
-  items: Project[]
+  items: Work[]
 }
 
 const GlobalStyles = () => {
@@ -63,13 +68,13 @@ const GlobalStyles = () => {
   return null
 }
 
-export default function ProjectCRUD() {
-  const [projects, setProjects] = useState<Project[]>([])
+export default function WorkCRUD() {
+  const [works, setWorks] = useState<Work[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [currentProject, setCurrentProject] = useState<Project | null>(null)
+  const [currentWork, setCurrentWork] = useState<Work | null>(null)
   const [message, setMessage] = useState<{ type: 'info' | 'success' | 'warning' | 'error', content: string } | null>(null)
   const [loading, setLoading] = useState(false)
   const MessageComponent = {
@@ -81,49 +86,49 @@ export default function ProjectCRUD() {
   
   async function fetchData() {
     const data = await queryRealData(currentPage, 10)
-    setProjects(data.items)
+    setWorks(data.items)
     setTotalPages(data.totalPages)
   }
 
-  async function updateProject(projectData: Partial<Project>) {
-    if (!currentProject) return
+  async function updateWork(workData: Partial<Work>) {
+    if (!currentWork) return
     try {
       setLoading(true)
       const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
-      const record = await pb.collection('ait_whm_projects').update(currentProject.id, projectData)
+      const record = await pb.collection('ait_whm_works').update(currentWork.id, workData)
       console.log("update data : " + record)
       await fetchData()
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
     } finally {
       setLoading(false)
     }
   }
 
-  async function insertProject(projectData: Partial<Project>) {
+  async function insertWork(workData: Partial<Work>) {
     try {
       setLoading(true)
       const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
-      const record = await pb.collection('ait_whm_projects').create(projectData)
+      const record = await pb.collection('ait_whm_works').create(workData)
       console.log("insert data : " + record)
       await fetchData()
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
     } finally {
       setLoading(false)
     }
   }
   
-  async function deleteProject(project_id: string) {
+  async function deleteWork(work_id: string) {
     try {
       setLoading(true)
       const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
-      await pb.collection('ait_whm_projects').delete(project_id)
+      await pb.collection('ait_whm_works').delete(work_id)
       await fetchData()
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
     } finally {
       setLoading(false)
@@ -136,20 +141,30 @@ export default function ProjectCRUD() {
     try {
       setLoading(true)
       const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
-      const records = await pb.collection('ait_whm_projects').getList()
+      const records = await pb.collection('ait_whm_works').getList(page, perPage, {
+        sort: '-created',
+        expand: 'own_users,own_projects,own_tasks',
+      })
       items = records.items
+      return {
+        page: records.page,
+        perPage: records.perPage,
+        totalPages: records.totalPages,
+        totalItems: records.totalItems,
+        items
+      }
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      return {
+        page,
+        perPage,
+        totalPages: Math.ceil(totalItems / perPage),
+        totalItems,
+        items
+      }
     } finally {
       setLoading(false)
-    }
-    return {
-      page,
-      perPage,
-      totalPages: Math.ceil(totalItems / perPage),
-      totalItems,
-      items
     }
   }
 
@@ -177,8 +192,8 @@ export default function ProjectCRUD() {
     setIsAddModalOpen(true)
   }
 
-  const openEditModal = (project: Project) => {
-    setCurrentProject(project)
+  const openEditModal = (work: Work) => {
+    setCurrentWork(work)
     setIsEditModalOpen(true)
   }
 
@@ -187,7 +202,7 @@ export default function ProjectCRUD() {
   }
 
   const closeEditModal = () => {
-    setCurrentProject(null)
+    setCurrentWork(null)
     setIsEditModalOpen(false)
   }
 
@@ -195,22 +210,21 @@ export default function ProjectCRUD() {
     e.preventDefault()
     const form = e.currentTarget
     const formData = new FormData(form)
-    const start_time = new Date(formData.get('start_time') as string)
-    const end_time = new Date(formData.get('end_time') as string)
-    const projectData = {
+    const workData = {
       name: formData.get('name') as string,
-      start_time: start_time.toISOString(),
-      end_time: end_time.toISOString(),
-      description: formData.get('description') as string,
-      enable: formData.get('enable') === 'true',
+      own_users: formData.get('own_users') as string,
+      own_projects: formData.get('own_projects') as string,
       note: formData.get('note') as string,
-      own_tasks: formData.get('own_tasks') ? (formData.get('own_tasks') as string).split(',') : undefined,
+      hour: parseFloat(formData.get('hour') as string),
+      own_tasks: formData.get('own_tasks') as string,
+      start_date: new Date(formData.get('start_date') as string).toISOString(),
+      end_date: new Date(formData.get('end_date') as string).toISOString(),
     }
     if (isEdit) {
-      await updateProject(projectData)
+      await updateWork(workData)
       closeEditModal()
     } else {
-      await insertProject(projectData)
+      await insertWork(workData)
       closeAddModal()
     }
   }
@@ -221,7 +235,7 @@ export default function ProjectCRUD() {
     return (
       <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 transition-all duration-300 ease-in-out ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
         <div className={`bg-white rounded-lg shadow-xl p-4 w-full max-w-md transform transition-all duration-300 ease-in-out ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
-          <h2 className="text-lg font-bold mb-3">{isEdit ? 'Edit Project' : 'Add New Project'}</h2>
+          <h2 className="text-lg font-bold mb-3">{isEdit ? 'Edit Work' : 'Add New Work'}</h2>
           <form onSubmit={(e) => handleSubmit(e, isEdit)} className="text-sm">
             <div className="mb-3">
               <label htmlFor="name" className="block text-xs font-medium text-gray-700">Name</label>
@@ -229,60 +243,92 @@ export default function ProjectCRUD() {
                 type="text"
                 id="name"
                 name="name"
-                defaultValue={isEdit ? currentProject?.name : ''}
+                defaultValue={isEdit ? currentWork?.name : ''}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 required
               />
             </div>
             <div className="mb-3">
-              <label htmlFor="start_time" className="block text-xs font-medium text-gray-700">Start Time</label>
+              <label htmlFor="own_users" className="block text-xs font-medium text-gray-700">User</label>
               <input
-                type="date"
-                id="start_time"
-                name="start_time"
-                defaultValue={isEdit ? currentProject?.start_time.split('.')[0] : ''}
+                type="text"
+                id="own_users"
+                name="own_users"
+                defaultValue={isEdit ? currentWork?.own_users : ''}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 required
               />
             </div>
             <div className="mb-3">
-              <label htmlFor="end_time" className="block text-xs font-medium text-gray-700">End Time</label>
+              <label htmlFor="own_projects" className="block text-xs font-medium text-gray-700">Project</label>
               <input
-                type="date"
-                id="end_time"
-                name="end_time"
-                defaultValue={isEdit ? currentProject?.end_time.split('.')[0] : ''}
+                type="text"
+                id="own_projects"
+                name="own_projects"
+                defaultValue={isEdit ? currentWork?.own_projects : ''}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 required
               />
             </div>
             <div className="mb-3">
-              <label htmlFor="description" className="block text-xs font-medium text-gray-700">Description</label>
+              <label htmlFor="note" className="block text-xs font-medium text-gray-700">Note</label>
               <textarea
-                id="description"
-                name="description"
-                defaultValue={isEdit ? currentProject?.description : ''}
+                id="note"
+                name="note"
+                defaultValue={isEdit ? currentWork?.note : ''}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 rows={3}
               ></textarea>
             </div>
-            <div className="mb-3 relative">
-              <label htmlFor="enable" className="block text-xs font-medium text-gray-700">Status</label>
-              <div className="relative">
-                <select
-                  id="enable"
-                  name="enable"
-                  defaultValue={isEdit ? (currentProject?.enable ? 'true' : 'false') : 'true'}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                >
-                  <option value="true">Active</option>
-                  <option value="false">Inactive</option>
-                </select>
-              </div>
+            <div className="mb-3">
+              <label htmlFor="hour" className="block text-xs font-medium text-gray-700">Hours</label>
+              <input
+                type="number"
+                id="hour"
+                name="hour"
+                step="0.1"
+                defaultValue={isEdit ? currentWork?.hour : ''}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                required
+              />
+            </div>
+            <div className="mb-3">
+              <label htmlFor="own_tasks" className="block text-xs font-medium text-gray-700">Task</label>
+              <input
+                type="text"
+                id="own_tasks"
+                name="own_tasks"
+                defaultValue={isEdit ? currentWork?.own_tasks : ''}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                required
+              />
+            </div>
+            <div className="mb-3">
+              <label htmlFor="start_date" className="block text-xs font-medium text-gray-700">Start Date</label>
+              <input
+                type="datetime-local"
+                id="start_date"
+                name="start_date"
+                defaultValue={isEdit ? currentWork?.start_date.split('.')[0] : ''}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                required
+              />
+            </div>
+            <div className="mb-3">
+              <label htmlFor="end_date" className="block text-xs font-medium text-gray-700">End Date</label>
+              <input
+                type="datetime-local"
+                id="end_date"
+                name="end_date"
+                defaultValue={isEdit ? currentWork?.end_date.split('.')[0] : ''}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                required
+              />
             </div>
             <div className="flex justify-end space-x-3">
               <button
                 type="button"
+                
                 onClick={closeModal}
                 className="px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300 ease-in-out"
               >
@@ -307,13 +353,13 @@ export default function ProjectCRUD() {
       <div className="mx-auto bg-white rounded-lg shadow-md overflow-hidden">
         <div className="p-4">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-xl font-bold text-gray-900">Projects</h1>
+            <h1 className="text-xl font-bold text-gray-900">Works</h1>
             <button
               onClick={openAddModal}
               className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 flex items-center transition duration-300 ease-in-out"
             >
               <PlusIcon className="w-4 h-4 mr-1" />
-              Add Project
+              Add Work
             </button>
           </div>
 
@@ -322,28 +368,28 @@ export default function ProjectCRUD() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th  className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Time</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Time</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {projects.map((project) => (
-                  <tr key={project.id}>
-                    <td className="px-4 py-2 whitespace-nowrap">{project.name}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{new Date(project.start_time).toLocaleDateString()}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{new Date(project.end_time).toLocaleDateString()}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${project.enable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {project.enable ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
+                {works.map((work) => (
+                  <tr key={work.id}>
+                    <td className="px-4 py-2 whitespace-nowrap">{work.name}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{work.own_users}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{work.own_projects}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{work.hour}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{new Date(work.start_date).toLocaleString()}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{new Date(work.end_date).toLocaleString()}</td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs font-medium">
-                      <button onClick={() => openEditModal(project)} className="text-indigo-600 hover:text-indigo-900 mr-3 transition duration-300 ease-in-out">
+                      <button onClick={() => openEditModal(work)} className="text-indigo-600 hover:text-indigo-900 mr-3 transition duration-300 ease-in-out">
                         <PencilIcon className="w-4 h-4" />
                       </button>
-                      <button onClick={() => deleteProject(project.id)} className="text-red-600 hover:text-red-900 transition duration-300 ease-in-out">
+                      <button onClick={() => deleteWork(work.id)} className="text-red-600 hover:text-red-900 transition duration-300 ease-in-out">
                         <TrashIcon className="w-4 h-4" />
                       </button>
                     </td>
