@@ -10,13 +10,28 @@ import PocketBase from 'pocketbase'
 
 type Project = {
   id: string
+  collectionId: string
+  collectionName: string
+  created: string
+  updated: string
   name: string
-  start_time: string
-  end_time: string
   description: string
   enable: boolean
+  start_time: string
+  end_time: string
   note: string
   own_tasks: string[]
+}
+
+type Task = {
+  id: string
+  collectionId: string
+  collectionName: string
+  created: string
+  updated: string
+  name: string
+  note: string
+  type: string
 }
 
 type FakeDataResponse = {
@@ -65,6 +80,7 @@ const GlobalStyles = () => {
 
 export default function ProjectCRUD() {
   const [projects, setProjects] = useState<Project[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
@@ -85,6 +101,22 @@ export default function ProjectCRUD() {
     setTotalPages(data.totalPages)
   }
 
+  async function fetchTasks() {
+    try {
+      setLoading(true)
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+      const records = await pb.collection('ait_whm_tasks').getList(1, 50, {
+        sort: 'name',
+      })
+      setTasks(records.items)
+    } catch (error: any) {
+      console.error('PocketBase error : ', error)
+      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function updateProject(projectData: Partial<Project>) {
     if (!currentProject) return
     try {
@@ -94,7 +126,7 @@ export default function ProjectCRUD() {
       console.log("update data : " + record)
       await fetchData()
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
     } finally {
       setLoading(false)
@@ -109,7 +141,7 @@ export default function ProjectCRUD() {
       console.log("insert data : " + record)
       await fetchData()
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
     } finally {
       setLoading(false)
@@ -123,7 +155,7 @@ export default function ProjectCRUD() {
       await pb.collection('ait_whm_projects').delete(project_id)
       await fetchData()
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
     } finally {
       setLoading(false)
@@ -136,25 +168,36 @@ export default function ProjectCRUD() {
     try {
       setLoading(true)
       const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
-      const records = await pb.collection('ait_whm_projects').getList()
+      const records = await pb.collection('ait_whm_projects').getList(page, perPage, {
+        sort: '-created',
+        expand: 'own_tasks',
+      })
       items = records.items
+      return {
+        page: records.page,
+        perPage: records.perPage,
+        totalPages: records.totalPages,
+        totalItems: records.totalItems,
+        items
+      }
     } catch (error: any) {
-      console.error('PocketBase login error : ', error)
+      console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      return {
+        page,
+        perPage,
+        totalPages: Math.ceil(totalItems / perPage),
+        totalItems,
+        items
+      }
     } finally {
       setLoading(false)
-    }
-    return {
-      page,
-      perPage,
-      totalPages: Math.ceil(totalItems / perPage),
-      totalItems,
-      items
     }
   }
 
   useEffect(() => {
     fetchData()
+    fetchTasks()
   }, [currentPage])
 
   useEffect(() => {
@@ -199,12 +242,12 @@ export default function ProjectCRUD() {
     const end_time = new Date(formData.get('end_time') as string)
     const projectData = {
       name: formData.get('name') as string,
-      start_time: start_time.toISOString(),
-      end_time: end_time.toISOString(),
       description: formData.get('description') as string,
       enable: formData.get('enable') === 'true',
+      start_time: start_time.toISOString(),
+      end_time: end_time.toISOString(),
       note: formData.get('note') as string,
-      own_tasks: formData.get('own_tasks') ? (formData.get('own_tasks') as string).split(',') : undefined,
+      own_tasks: formData.getAll('own_tasks') as string[],
     }
     if (isEdit) {
       await updateProject(projectData)
@@ -235,9 +278,19 @@ export default function ProjectCRUD() {
               />
             </div>
             <div className="mb-3">
+              <label htmlFor="description" className="block text-xs font-medium text-gray-700">Description</label>
+              <textarea
+                id="description"
+                name="description"
+                defaultValue={isEdit ? currentProject?.description : ''}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                rows={3}
+              ></textarea>
+            </div>
+            <div className="mb-3">
               <label htmlFor="start_time" className="block text-xs font-medium text-gray-700">Start Time</label>
               <input
-                type="date"
+                type="datetime-local"
                 id="start_time"
                 name="start_time"
                 defaultValue={isEdit ? currentProject?.start_time.split('.')[0] : ''}
@@ -248,23 +301,13 @@ export default function ProjectCRUD() {
             <div className="mb-3">
               <label htmlFor="end_time" className="block text-xs font-medium text-gray-700">End Time</label>
               <input
-                type="date"
+                type="datetime-local"
                 id="end_time"
                 name="end_time"
                 defaultValue={isEdit ? currentProject?.end_time.split('.')[0] : ''}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 required
               />
-            </div>
-            <div className="mb-3">
-              <label htmlFor="description" className="block text-xs font-medium text-gray-700">Description</label>
-              <textarea
-                id="description"
-                name="description"
-                defaultValue={isEdit ? currentProject?.description : ''}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                rows={3}
-              ></textarea>
             </div>
             <div className="mb-3 relative">
               <label htmlFor="enable" className="block text-xs font-medium text-gray-700">Status</label>
@@ -279,6 +322,31 @@ export default function ProjectCRUD() {
                   <option value="false">Inactive</option>
                 </select>
               </div>
+            </div>
+            <div className="mb-3">
+              <label htmlFor="note" className="block text-xs font-medium text-gray-700">Note</label>
+              <textarea
+                id="note"
+                name="note"
+                defaultValue={isEdit ? currentProject?.note : ''}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                rows={3}
+              ></textarea>
+            </div>
+            <div className="mb-3">
+              <label htmlFor="own_tasks" className="block text-xs font-medium text-gray-700">Tasks</label>
+              <select
+                multiple
+                
+                id="own_tasks"
+                name="own_tasks"
+                defaultValue={isEdit ? currentProject?.own_tasks : []}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+              >
+                {tasks.map((task) => (
+                  <option key={task.id} value={task.id}>{task.name}</option>
+                ))}
+              </select>
             </div>
             <div className="flex justify-end space-x-3">
               <button
@@ -322,7 +390,8 @@ export default function ProjectCRUD() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th  className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Time</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Time</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Time</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -332,8 +401,9 @@ export default function ProjectCRUD() {
                 {projects.map((project) => (
                   <tr key={project.id}>
                     <td className="px-4 py-2 whitespace-nowrap">{project.name}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{new Date(project.start_time).toLocaleDateString()}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{new Date(project.end_time).toLocaleDateString()}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{project.description}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{new Date(project.start_time).toLocaleString()}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{new Date(project.end_time).toLocaleString()}</td>
                     <td className="px-4 py-2 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${project.enable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                         {project.enable ? 'Active' : 'Inactive'}
