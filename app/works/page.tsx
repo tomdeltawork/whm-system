@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Fragment } from 'react'
+import { useState, useEffect, Fragment, useRef } from 'react'
 import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, CheckIcon, XIcon } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { InfoMessage, SuccessMessage, WarningMessage, ErrorMessage } from '@/utils/message'
@@ -147,6 +147,8 @@ export default function WorkCRUD() {
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
   const { getUserId } = useAuthStore();
 
+  const modalRef = useRef<HTMLDivElement>(null)
+
   async function fetchData() {
     const data = await queryRealData(currentPage, 10)
     setWorks(data.items)
@@ -242,7 +244,7 @@ export default function WorkCRUD() {
       await fetchData()
     } catch (error: any) {
       console.error('PocketBase error : ', error)
-      if(error.response.code == '404'){
+      if(error.response.code == '400'){
         setMessage({ type: 'error', content: '未授權進行此操作!!' })
       }else{
         setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
@@ -321,6 +323,30 @@ export default function WorkCRUD() {
     }
   }, [isAddModalOpen, isEditModalOpen])
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (modalRef.current) {
+        const modalContent = modalRef.current.querySelector('div')
+        if (modalContent) {
+          const viewportHeight = window.innerHeight
+          const modalHeight = modalContent.getBoundingClientRect().height
+          if (modalHeight > viewportHeight) {
+            modalContent.style.height = `${viewportHeight - 40}px` // 40px for some padding
+            modalContent.style.overflowY = 'auto'
+          } else {
+            modalContent.style.height = 'auto'
+            modalContent.style.overflowY = 'visible'
+          }
+        }
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    handleResize() // Call once to set initial state
+
+    return () => window.removeEventListener('resize', handleResize)
+  }, [isAddModalOpen, isEditModalOpen])
+
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage)
   }
@@ -377,6 +403,7 @@ export default function WorkCRUD() {
         }])
       }
       
+      
       setMessage({ type: 'success', content: 'Files uploaded successfully' })
     } catch (error: any) {
       console.error('File upload error:', error)
@@ -419,7 +446,7 @@ export default function WorkCRUD() {
     const isOpen = isEdit ? isEditModalOpen : isAddModalOpen
     const closeModal = isEdit ? closeEditModal : closeAddModal
     return (
-      <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 transition-all duration-300 ease-in-out ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+      <div ref={modalRef} className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 transition-all duration-300 ease-in-out ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
         <div className={`bg-white rounded-lg shadow-xl p-4 w-full max-w-md transform transition-all duration-300 ease-in-out ${isOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
           <h2 className="text-lg font-bold mb-3">{isEdit ? 'Edit Work' : 'Add New Work'}</h2>
           <form onSubmit={(e) => handleSubmit(e, isEdit)} className="text-sm">
