@@ -46,12 +46,29 @@ export default function SignupPage() {
       };
       const record = await pb.collection('users').create(data);
       console.log(record)
-      setMessage({ type: 'success', content: '註冊成功!!' })
-      router.push('/login')
+      setMessage({ type: 'success', content: '註冊成功，請通知管理員開通帳號!!' })
+      // router.push('/login')
     
     } catch (error: any) {
       console.error('PocketBase signup error : ', error);
+      console.error('error.response : ', error.response);
+      if(error.response.code == '400'){
+        if(error.response.data.email.code == 'validation_invalid_email'){
+          setMessage({ type: 'error', content: 'Email不合法，或已被使用!!' })
+          return;
+        }
+        else if(error.response.data.password.code == 'validation_length_out_of_range'){
+          setMessage({ type: 'error', content: '密碼長度必須在 8 到 72 個字符之間!!' })
+          return;
+        }
+        else if(error.response.data.passwordConfirm.code == 'validation_length_out_of_range'){
+          setMessage({ type: 'error', content: '密碼確認不一致!!' })
+          return;
+        }
+      }
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+
+      // 
     } finally {
       setLoading(false)
     }

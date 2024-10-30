@@ -95,7 +95,11 @@ export default function TaskCRUD() {
       await fetchData()
     } catch (error: any) {
       console.error('PocketBase error : ', error)
-      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      if(error.response.code == '404'){
+        setMessage({ type: 'error', content: '未授權進行此操作!!' })
+      }else{
+        setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      }
     } finally {
       setLoading(false)
     }
@@ -110,7 +114,11 @@ export default function TaskCRUD() {
       await fetchData()
     } catch (error: any) {
       console.error('PocketBase error : ', error)
-      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      if(error.response.code == '404'){
+        setMessage({ type: 'error', content: '未授權進行此操作!!' })
+      }else{
+        setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      }
     } finally {
       setLoading(false)
     }
@@ -124,7 +132,11 @@ export default function TaskCRUD() {
       await fetchData()
     } catch (error: any) {
       console.error('PocketBase error : ', error)
-      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      if(error.response.code == '404'){
+        setMessage({ type: 'error', content: '未授權進行此操作!!' })
+      }else{
+        setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      }
     } finally {
       setLoading(false)
     }

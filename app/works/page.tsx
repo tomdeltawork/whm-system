@@ -145,6 +145,7 @@ export default function WorkCRUD() {
   const [message, setMessage] = useState<{ type: 'info' | 'success' | 'warning' | 'error', content: string } | null>(null)
   const [loading, setLoading] = useState(false)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
+  const { getUserId } = useAuthStore();
 
   async function fetchData() {
     const data = await queryRealData(currentPage, 10)
@@ -222,7 +223,11 @@ export default function WorkCRUD() {
       await fetchData()
     } catch (error: any) {
       console.error('PocketBase error : ', error)
-      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      if(error.response.code == '404'){
+        setMessage({ type: 'error', content: '未授權進行此操作!!' })
+      }else{
+        setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      }
     } finally {
       setLoading(false)
     }
@@ -237,7 +242,11 @@ export default function WorkCRUD() {
       await fetchData()
     } catch (error: any) {
       console.error('PocketBase error : ', error)
-      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      if(error.response.code == '404'){
+        setMessage({ type: 'error', content: '未授權進行此操作!!' })
+      }else{
+        setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      }
     } finally {
       setLoading(false)
     }
@@ -251,7 +260,11 @@ export default function WorkCRUD() {
       await fetchData()
     } catch (error: any) {
       console.error('PocketBase error : ', error)
-      setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      if(error.response.code == '404'){
+        setMessage({ type: 'error', content: '未授權進行此操作!!' })
+      }else{
+        setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
+      }
     } finally {
       setLoading(false)
     }
@@ -383,7 +396,7 @@ export default function WorkCRUD() {
     const formData = new FormData(form)
     const workData = {
       name: formData.get('name') as string,
-      own_users: 'iq749xom8psrtt5', // Hardcoded value as requested
+      own_users: getUserId() as string,
       own_projects: selectedProject?.id || '',
       note: formData.get('note') as string,
       hour: parseFloat(formData.get('hour') as string),

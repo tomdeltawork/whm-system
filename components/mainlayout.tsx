@@ -142,7 +142,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
             <span className="sr-only">切換選單</span>
           </Button>
           <div className="w-full flex-1">
-            <form>
+            {/* <form>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500 dark:text-gray-400" />
                 <input
@@ -151,7 +151,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                   type="search"
                 />
               </div>
-            </form>
+            </form> */}
           </div>
           {/* Dropdown Menu for User Icon */}
           <DropdownMenu>
