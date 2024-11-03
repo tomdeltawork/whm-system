@@ -161,7 +161,7 @@ export default function WorkCRUD() {
   const fetchProjects = useCallback(async () => {
     try {
       setLoading(true)
-      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
       const records = await pb.collection('ait_whm_projects').getList(1, 50, {
         sort: 'name',
       })
@@ -214,7 +214,7 @@ export default function WorkCRUD() {
   async function fetchTasks() {
     try {
       setLoading(true)
-      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
       const records = await pb.collection('ait_whm_tasks').getList(1, 50, {
         sort: 'name',
       })
@@ -243,7 +243,7 @@ export default function WorkCRUD() {
     if (!currentWork) return
     try {
       setLoading(true)
-      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
       const record = await pb.collection('ait_whm_works').update(currentWork.id, workData)
       console.log("update data : " + record)
       await fetchData()
@@ -262,7 +262,7 @@ export default function WorkCRUD() {
   async function insertWork(workData: Partial<Work>) {
     try {
       setLoading(true)
-      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
       const record = await pb.collection('ait_whm_works').create(workData)
       console.log("insert data : " + record)
       await fetchData()
@@ -281,7 +281,7 @@ export default function WorkCRUD() {
   async function deleteWork(work_id: string) {
     try {
       setLoading(true)
-      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
       await pb.collection('ait_whm_works').delete(work_id)
       await fetchData()
     } catch (error: any) {
@@ -302,7 +302,7 @@ export default function WorkCRUD() {
     const totalItems = 50
     try {
       setLoading(true)
-      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
       let filter = ''
       if (filterProject) {
         filter += `own_projects = "${filterProject.id}"`
@@ -432,7 +432,7 @@ export default function WorkCRUD() {
 
     try {
       setLoading(true)
-      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
+      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
       
       for (let i = 0; i < files.length; i++) {
         const formData = new FormData()

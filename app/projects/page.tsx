@@ -8,6 +8,7 @@ import { WithLoading } from '@/utils/loading'
 import { Listbox, Transition } from '@headlessui/react'
 import PocketBase, { RecordModel } from 'pocketbase'
 import React from 'react'
+import Link from 'next/link'
 
 const FallbackMessage = ({ message, duration, onClose }: { message: string, duration: number, onClose: () => void }) => {
   useEffect(() => {
@@ -358,6 +359,7 @@ export default function ProjectCRUD() {
                 <div className="relative mt-1">
                   <Listbox.Button className="relative w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-md focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-300 sm:text-sm">
                     <span className="block truncate">
+                      
                       {selectedTasks.length === 0
                         ? 'Select tasks'
                         : `${selectedTasks.length} task${selectedTasks.length > 1 ? 's' : ''} selected`}
@@ -517,7 +519,7 @@ export default function ProjectCRUD() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {selectedProject.expand?.ait_whm_works_via_own_projects?.map((work) => (
+                    {selectedProject.expand?.ait_whm_works_via_own_projects?.slice(0, 5).map((work) => (
                       <tr key={work.id}>
                         <td className="px-4 py-2 whitespace-nowrap">{work.name}</td>
                         <td className="px-4 py-2 whitespace-nowrap">{work.note}</td>
@@ -525,11 +527,7 @@ export default function ProjectCRUD() {
                         <td className="px-4 py-2 whitespace-nowrap">{new Date(work.end_date).toLocaleString()}</td>
                         <td className="px-4 py-2 whitespace-nowrap">{work.hour}</td>
                       </tr>
-                    )) || (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-2 text-center text-gray-500">No associated works found</td>
-                      </tr>
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -537,7 +535,12 @@ export default function ProjectCRUD() {
           ) : (
             <p className="text-gray-500">No associated works found</p>
           )}
-          <div className="mt-4 flex justify-end">
+          <div className="mt-4 flex justify-between">
+            <Link href={`/works?project_id=${selectedProject.id}`} passHref>
+              <button className="px-3 py-1 border border-blue-500 text-blue-500 rounded-md text-xs font-medium hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out">
+                View All Works
+              </button>
+            </Link>
             <button
               onClick={closeDetailModal}
               className="px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300 ease-in-out"
