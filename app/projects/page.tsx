@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, Fragment } from 'react'
-import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, CheckIcon } from 'lucide-react'
+import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, CheckIcon, EyeIcon } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { InfoMessage, SuccessMessage, WarningMessage, ErrorMessage } from '@/utils/message'
 import { WithLoading } from '@/utils/loading'
@@ -29,6 +29,23 @@ const MessageComponent = {
   error: ErrorMessage || FallbackMessage
 };
 
+type Work = {
+  id: string
+  collectionId: string
+  collectionName: string
+  created: string
+  updated: string
+  name: string
+  note: string
+  start_date: string
+  end_date: string
+  hour: number
+  own_projects: string
+  own_tasks: string
+  own_users: string
+  attach_files: string[]
+}
+
 type Project = {
   id: string
   collectionId: string
@@ -42,6 +59,9 @@ type Project = {
   end_time: string
   note: string
   own_tasks: string[]
+  expand: {
+    ait_whm_works_via_own_projects: Work[]
+  }
 }
 
 type Task = {
@@ -110,6 +130,8 @@ export default function ProjectCRUD() {
   const [selectedTasks, setSelectedTasks] = useState<Task[]>([])
   const [message, setMessage] = useState<{ type: 'info' | 'success' | 'warning' | 'error', content: string } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
   
   async function fetchData() {
     const data = await queryRealData(currentPage, 10)
@@ -125,7 +147,6 @@ export default function ProjectCRUD() {
         sort: 'name',
       })
 
-      // 將 RecordModel[] 轉換為符合 Task[] 結構的資料
       const formattedTasks: Task[] = records.items.map((record: RecordModel) => ({
         id: record.id,
         collectionId: record.collectionId,
@@ -134,7 +155,7 @@ export default function ProjectCRUD() {
         updated: record.updated,
         name: record.name,
         note: record.note,
-        type: 'default' // 可以依需求設定默認值或從其他來源取得
+        type: 'default'
       }))
 
       setTasks(formattedTasks)
@@ -211,7 +232,7 @@ export default function ProjectCRUD() {
       const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
       const records = await pb.collection('ait_whm_projects').getList(page, perPage, {
         sort: '-created',
-        expand: 'own_tasks',
+        expand: 'own_tasks,ait_whm_works_via_own_projects',
       })
       items = records.items
       return {
@@ -243,7 +264,7 @@ export default function ProjectCRUD() {
 
   useEffect(() => {
     const body = document.body
-    if (isAddModalOpen || isEditModalOpen) {
+    if (isAddModalOpen || isEditModalOpen || isDetailModalOpen) {
       const scrollBarWidth = window.innerWidth - document.documentElement.clientWidth
       body.style.overflow = 'hidden'
       body.style.paddingRight = `${scrollBarWidth}px`
@@ -251,7 +272,7 @@ export default function ProjectCRUD() {
       body.style.overflow = ''
       body.style.paddingRight = ''
     }
-  }, [isAddModalOpen, isEditModalOpen])
+  }, [isAddModalOpen, isEditModalOpen, isDetailModalOpen])
 
   const handlePageChange = (newPage: number) => {
     setCurrentPage(newPage)
@@ -276,6 +297,16 @@ export default function ProjectCRUD() {
     setCurrentProject(null)
     setSelectedTasks([])
     setIsEditModalOpen(false)
+  }
+
+  const openDetailModal = (project: Project) => {
+    setSelectedProject(project)
+    setIsDetailModalOpen(true)
+  }
+
+  const closeDetailModal = () => {
+    setSelectedProject(null)
+    setIsDetailModalOpen(false)
   }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>, isEdit: boolean) => {
@@ -330,6 +361,7 @@ export default function ProjectCRUD() {
                       {selectedTasks.length === 0
                         ? 'Select tasks'
                         : `${selectedTasks.length} task${selectedTasks.length > 1 ? 's' : ''} selected`}
+                    
                     </span>
                     <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
                       <ChevronLeftIcon
@@ -432,7 +464,6 @@ export default function ProjectCRUD() {
                 defaultValue={isEdit ? currentProject?.note : ''}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 rows={3}
-              
               ></textarea>
             </div>
             <div className="flex justify-end space-x-3">
@@ -451,6 +482,69 @@ export default function ProjectCRUD() {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    )
+  }
+
+  const renderDetailModal = () => {
+    if (!selectedProject) return null
+
+    return (
+      <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 transition-all duration-300 ease-in-out ${isDetailModalOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+        <div className={`bg-white rounded-lg shadow-xl p-4 w-full max-w-2xl transform transition-all duration-300 ease-in-out ${isDetailModalOpen ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}>
+          <h2 className="text-lg font-bold mb-3">Project Details</h2>
+          <div className="space-y-2 mb-4">
+            <p><strong>Name:</strong> {selectedProject.name}</p>
+            <p><strong>Description:</strong> {selectedProject.description}</p>
+            <p><strong>Start Time:</strong> {new Date(selectedProject.start_time).toLocaleString()}</p>
+            <p><strong>End Time:</strong> {new Date(selectedProject.end_time).toLocaleString()}</p>
+            <p><strong>Status:</strong> {selectedProject.enable ? 'Active' : 'Inactive'}</p>
+            <p><strong>Note:</strong> {selectedProject.note}</p>
+          </div>
+          {selectedProject.expand?.ait_whm_works_via_own_projects?.length > 0 ? (
+            <>
+              <h3 className="text-md font-semibold mb-2">Associated Works (最多5筆)</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Note</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {selectedProject.expand?.ait_whm_works_via_own_projects?.map((work) => (
+                      <tr key={work.id}>
+                        <td className="px-4 py-2 whitespace-nowrap">{work.name}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{work.note}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{new Date(work.start_date).toLocaleString()}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{new Date(work.end_date).toLocaleString()}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{work.hour}</td>
+                      </tr>
+                    )) || (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-2 text-center text-gray-500">No associated works found</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <p className="text-gray-500">No associated works found</p>
+          )}
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={closeDetailModal}
+              className="px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-300 ease-in-out"
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -497,6 +591,9 @@ export default function ProjectCRUD() {
                       </span>
                     </td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs font-medium">
+                      <button onClick={() => openDetailModal(project)} className="text-blue-600 hover:text-blue-900 mr-3 transition duration-300 ease-in-out">
+                        <EyeIcon className="w-4 h-4" />
+                      </button>
                       <button onClick={() => openEditModal(project)} className="text-indigo-600 hover:text-indigo-900 mr-3 transition duration-300 ease-in-out">
                         <PencilIcon className="w-4 h-4" />
                       </button>
@@ -536,6 +633,7 @@ export default function ProjectCRUD() {
 
       {renderModal(false)}
       {renderModal(true)}
+      {renderDetailModal()}
 
       {message && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 mt-4">

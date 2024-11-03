@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect, Fragment, useRef } from 'react'
+import { useState, useEffect, Fragment, useRef, useCallback } from 'react'
 import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, CheckIcon, XIcon } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { InfoMessage, SuccessMessage, WarningMessage, ErrorMessage } from '@/utils/message'
 import { WithLoading } from '@/utils/loading'
 import { Listbox, Transition } from '@headlessui/react'
 import PocketBase, { RecordModel } from 'pocketbase'
+import { useSearchParams } from 'next/navigation'
+import debounce from 'lodash/debounce'
 import React from 'react'
 
 type Work = {
@@ -149,16 +151,17 @@ export default function WorkCRUD() {
 
   const modalRef = useRef<HTMLDivElement>(null)
 
-  async function fetchData() {
-    const data = await queryRealData(currentPage, 10)
-    setWorks(data.items)
-    setTotalPages(data.totalPages)
-  }
+  const [filterProject, setFilterProject] = useState<Project | null>(null)
+  const [filterStartDate, setFilterStartDate] = useState<string>('')
+  const [filterEndDate, setFilterEndDate] = useState<string>('')
 
-  async function fetchProjects() {
+  const searchParams = useSearchParams()
+  const initialProjectId = searchParams.get('project_id')
+
+  const fetchProjects = useCallback(async () => {
     try {
       setLoading(true)
-      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
       const records = await pb.collection('ait_whm_projects').getList(1, 50, {
         sort: 'name',
       })
@@ -179,18 +182,39 @@ export default function WorkCRUD() {
       }))
 
       setProjects(formattedProjects)
+
+      if (initialProjectId) {
+        const project = formattedProjects.find(p => p.id === initialProjectId)
+        if (project) {
+          setFilterProject(project)
+        }
+      }
     } catch (error: any) {
       console.error('PocketBase error : ', error)
       setMessage({ type: 'error', content: '系統繁忙中，請稍後在試!!' })
     } finally {
       setLoading(false)
     }
-  }
+  }, [initialProjectId])
+
+  const fetchData = useCallback(async () => {
+    const data = await queryRealData(currentPage, 10)
+    setWorks(data.items)
+    setTotalPages(data.totalPages)
+  }, [currentPage, filterProject, filterStartDate, filterEndDate])
+
+  const debouncedFetchData = useCallback(
+    debounce(() => {
+      console.log('Debounced fetch triggered');
+      fetchData()
+    }, 300),
+    [fetchData]
+  )
 
   async function fetchTasks() {
     try {
       setLoading(true)
-      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
       const records = await pb.collection('ait_whm_tasks').getList(1, 50, {
         sort: 'name',
       })
@@ -219,7 +243,7 @@ export default function WorkCRUD() {
     if (!currentWork) return
     try {
       setLoading(true)
-      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
       const record = await pb.collection('ait_whm_works').update(currentWork.id, workData)
       console.log("update data : " + record)
       await fetchData()
@@ -238,7 +262,7 @@ export default function WorkCRUD() {
   async function insertWork(workData: Partial<Work>) {
     try {
       setLoading(true)
-      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
       const record = await pb.collection('ait_whm_works').create(workData)
       console.log("insert data : " + record)
       await fetchData()
@@ -257,7 +281,7 @@ export default function WorkCRUD() {
   async function deleteWork(work_id: string) {
     try {
       setLoading(true)
-      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
       await pb.collection('ait_whm_works').delete(work_id)
       await fetchData()
     } catch (error: any) {
@@ -273,14 +297,29 @@ export default function WorkCRUD() {
   }
 
   async function queryRealData(page: number, perPage: number): Promise<FakeDataResponse> {
+    console.log('Querying with filters:', { filterProject, filterStartDate, filterEndDate });
     let items: any = []
     const totalItems = 50
     try {
       setLoading(true)
-      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
+      let filter = ''
+      if (filterProject) {
+        filter += `own_projects = "${filterProject.id}"`
+      }
+      if (filterStartDate) {
+        filter += filter ? ' && ' : ''
+        filter += `start_date >= "${filterStartDate}T00:00:00.000Z"`
+      }
+      if (filterEndDate) {
+        filter += filter ? ' && ' : ''
+        filter += `end_date <= "${filterEndDate}T23:59:59.999Z"`
+      }
+      console.log('Applied filter:', filter);
       const records = await pb.collection('ait_whm_works').getList(page, perPage, {
         sort: '-created',
         expand: 'own_users,own_projects,own_tasks,attach_files',
+        filter: filter
       })
       items = records.items
       return {
@@ -306,10 +345,17 @@ export default function WorkCRUD() {
   }
 
   useEffect(() => {
-    fetchData()
     fetchProjects()
     fetchTasks()
-  }, [currentPage])
+  }, [fetchProjects])
+
+  useEffect(() => {
+    console.log('Effect triggered with:', { currentPage, filterProject, filterStartDate, filterEndDate });
+    debouncedFetchData()
+    return () => {
+      debouncedFetchData.cancel()
+    }
+  }, [currentPage, filterProject, filterStartDate, filterEndDate, debouncedFetchData])
 
   useEffect(() => {
     const body = document.body
@@ -355,6 +401,7 @@ export default function WorkCRUD() {
     setSelectedProject(null)
     setSelectedTask(null)
     setAttachedFiles([])
+    
     setIsAddModalOpen(true)
   }
 
@@ -363,6 +410,7 @@ export default function WorkCRUD() {
     setSelectedProject(projects.find(p => p.id === work.own_projects) || null)
     setSelectedTask(tasks.find(t => t.id === work.own_tasks) || null)
     setAttachedFiles(work.expand?.attach_files || [])
+    
     setIsEditModalOpen(true)
   }
 
@@ -384,7 +432,7 @@ export default function WorkCRUD() {
 
     try {
       setLoading(true)
-      const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+      const pb = new PocketBase('https://tomdeltawork.pockethost.io/')
       
       for (let i = 0; i < files.length; i++) {
         const formData = new FormData()
@@ -433,7 +481,7 @@ export default function WorkCRUD() {
       attach_files: attachedFiles.map(file => file.id)
     }
     if (isEdit) {
-      await  updateWork(workData)
+      await updateWork(workData)
       closeEditModal()
     } else {
       await insertWork(workData)
@@ -441,6 +489,22 @@ export default function WorkCRUD() {
     }
     setAttachedFiles([])
   }
+
+  const handleFilterChange = useCallback((type: 'project' | 'startDate' | 'endDate', value: any) => {
+    console.log(`Changing ${type} filter to:`, value);
+    switch (type) {
+      case 'project':
+        setFilterProject(value);
+        break;
+      case 'startDate':
+        setFilterStartDate(value);
+        break;
+      case 'endDate':
+        setFilterEndDate(value);
+        break;
+    }
+    setCurrentPage(1); // Reset to first page when filters change
+  }, []);
 
   const renderModal = (isEdit: boolean) => {
     const isOpen = isEdit ? isEditModalOpen : isAddModalOpen
@@ -688,6 +752,93 @@ export default function WorkCRUD() {
               <PlusIcon className="w-4 h-4 mr-1" />
               Add Work
             </button>
+          </div>
+
+          <div className="mb-4 flex flex-wrap gap-4">
+            <div className="w-full md:w-64">
+              <label htmlFor="filter-project" className="block text-xs font-medium text-gray-700 mb-1">Filter by Project</label>
+              <Listbox value={filterProject} onChange={(value) => handleFilterChange('project', value)}>
+                <div className="relative mt-1">
+                  <Listbox.Button className="relative w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-sm focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-300 sm:text-sm">
+                    <span className="block truncate">{filterProject?.name || 'All Projects'}</span>
+                    <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+                      <ChevronLeftIcon
+                        className="h-5 w-5 text-gray-400"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </Listbox.Button>
+                  <Transition
+                    as={Fragment}
+                    leave="transition ease-in duration-100"
+                    leaveFrom="opacity-100"
+                    leaveTo="opacity-0"
+                  >
+                    <Listbox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm z-10">
+                      <Listbox.Option
+                        className={({ active }) =>
+                          `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                            active ? 'bg-amber-100 text-amber-900' : 'text-gray-900'
+                          }`
+                        }
+                        value={null}
+                      >
+                        All Projects
+                      </Listbox.Option>
+                      {projects.map((project) => (
+                        <Listbox.Option
+                          key={project.id}
+                          className={({ active }) =>
+                            `relative cursor-default select-none py-2 pl-10 pr-4 ${
+                              active ? 'bg-amber-100 text-amber-900' : 'text-gray-900'
+                            }`
+                          }
+                          value={project}
+                        >
+                          {({ selected }) => (
+                            <>
+                              <span
+                                className={`block truncate ${
+                                  selected ? 'font-medium' : 'font-normal'
+                                }`}
+                              >
+                                {project.name}
+                              </span>
+                              {selected ? (
+                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-amber-600">
+                                  <CheckIcon className="h-5 w-5" aria-hidden="true" />
+                                </span>
+                              ) : null}
+                            </>
+                          )}
+                        
+                        </Listbox.Option>
+                      ))}
+                    </Listbox.Options>
+                  </Transition>
+                </div>
+              </Listbox>
+            </div>
+            <div>
+              <label htmlFor="filter-start-date" className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
+              <input
+                type="date"
+                id="filter-start-date"
+                value={filterStartDate}
+                onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+              />
+            </div>
+            <div>
+              <label htmlFor="filter-end-date" className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
+              <input
+                type="date"
+                id="filter-end-date"
+                value={filterEndDate}
+                onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+              />
+            </div>
           </div>
 
           <div className="overflow-x-auto">
