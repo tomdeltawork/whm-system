@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, Fragment, useRef, useCallback } from 'react'
+import { useState, useEffect, Fragment, useRef, useCallback, Suspense } from 'react'
 import { PlusIcon, PencilIcon, TrashIcon, ChevronLeftIcon, ChevronRightIcon, CheckIcon, XIcon } from 'lucide-react'
 import { useAuthStore } from '@/stores/authStore'
 import { InfoMessage, SuccessMessage, WarningMessage, ErrorMessage } from '@/utils/message'
@@ -133,7 +133,7 @@ const MessageComponent = {
   error: ErrorMessage || FallbackMessage
 };
 
-export default function WorkCRUD() {
+function WorkContent() {
   const [works, setWorks] = useState<Work[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
@@ -388,7 +388,8 @@ export default function WorkCRUD() {
     }
 
     window.addEventListener('resize', handleResize)
-    handleResize() // Call once to set initial state
+    handleResize() // 
+
 
     return () => window.removeEventListener('resize', handleResize)
   }, [isAddModalOpen, isEditModalOpen])
@@ -717,6 +718,7 @@ export default function WorkCRUD() {
                 </ul>
               </div>
             )}
+            
             <div className="flex justify-end space-x-3">
               <button
                 type="button"
@@ -755,88 +757,38 @@ export default function WorkCRUD() {
           </div>
 
           <div className="mb-4 flex flex-wrap gap-4">
-            <div className="w-full md:w-64">
-              <label htmlFor="filter-project" className="block text-xs font-medium text-gray-700 mb-1">Filter by Project</label>
-              <Listbox value={filterProject} onChange={(value) => handleFilterChange('project', value)}>
-                <div className="relative mt-1">
-                  <Listbox.Button className="relative w-full cursor-default rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-sm focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-300 sm:text-sm">
-                    <span className="block truncate">{filterProject?.name || 'All Projects'}</span>
-                    <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                      <ChevronLeftIcon
-                        className="h-5 w-5 text-gray-400"
-                        aria-hidden="true"
-                      />
-                    </span>
-                  </Listbox.Button>
-                  <Transition
-                    as={Fragment}
-                    leave="transition ease-in duration-100"
-                    leaveFrom="opacity-100"
-                    leaveTo="opacity-0"
-                  >
-                    <Listbox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm z-10">
-                      <Listbox.Option
-                        className={({ active }) =>
-                          `relative cursor-default select-none py-2 pl-10 pr-4 ${
-                            active ? 'bg-amber-100 text-amber-900' : 'text-gray-900'
-                          }`
-                        }
-                        value={null}
-                      >
-                        All Projects
-                      </Listbox.Option>
-                      {projects.map((project) => (
-                        <Listbox.Option
-                          key={project.id}
-                          className={({ active }) =>
-                            `relative cursor-default select-none py-2 pl-10 pr-4 ${
-                              active ? 'bg-amber-100 text-amber-900' : 'text-gray-900'
-                            }`
-                          }
-                          value={project}
-                        >
-                          {({ selected }) => (
-                            <>
-                              <span
-                                className={`block truncate ${
-                                  selected ? 'font-medium' : 'font-normal'
-                                }`}
-                              >
-                                {project.name}
-                              </span>
-                              {selected ? (
-                                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-amber-600">
-                                  <CheckIcon className="h-5 w-5" aria-hidden="true" />
-                                </span>
-                              ) : null}
-                            </>
-                          )}
-                        
-                        </Listbox.Option>
-                      ))}
-                    </Listbox.Options>
-                  </Transition>
-                </div>
-              </Listbox>
+            <div className="w-56">
+              <label htmlFor="project-filter" className="block text-xs font-medium text-gray-700 mb-1">Filter by Project</label>
+              <select
+                id="project-filter"
+                value={filterProject?.id || ''}
+                onChange={(e) => handleFilterChange('project', projects.find(p => p.id === e.target.value) || null)}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+              >
+                <option value="">All Projects</option>
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>{project.name}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label htmlFor="filter-start-date" className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
+              <label htmlFor="start-date-filter" className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
               <input
                 type="date"
-                id="filter-start-date"
+                id="start-date-filter"
                 value={filterStartDate}
                 onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
               />
             </div>
             <div>
-              <label htmlFor="filter-end-date" className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
+              <label htmlFor="end-date-filter" className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
               <input
                 type="date"
-                id="filter-end-date"
+                id="end-date-filter"
                 value={filterEndDate}
                 onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
               />
             </div>
           </div>
@@ -848,9 +800,9 @@ export default function WorkCRUD() {
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
                   <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -860,9 +812,9 @@ export default function WorkCRUD() {
                     <td className="px-4 py-2 whitespace-nowrap">{work.name}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{work.expand?.own_projects?.name || 'N/A'}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{work.expand?.own_tasks?.name || 'N/A'}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{work.hour}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{new Date(work.start_date).toLocaleString()}</td>
                     <td className="px-4 py-2 whitespace-nowrap">{new Date(work.end_date).toLocaleString()}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{work.hour}</td>
                     <td className="px-4 py-2 whitespace-nowrap text-xs font-medium">
                       <button onClick={() => openEditModal(work)} className="text-indigo-600 hover:text-indigo-900 mr-3 transition duration-300 ease-in-out">
                         <PencilIcon className="w-4 h-4" />
@@ -919,5 +871,13 @@ export default function WorkCRUD() {
         </WithLoading>
       </div>
     </div>
+  )
+}
+
+export default function WorkCRUD() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <WorkContent />
+    </Suspense>
   )
 }
