@@ -322,63 +322,6 @@ export default function ProjectCRUD() {
               />
             </div>
             <div className="mb-3">
-              <label htmlFor="description" className="block text-xs font-medium text-gray-700">Description</label>
-              <textarea
-                id="description"
-                name="description"
-                defaultValue={isEdit ? currentProject?.description : ''}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                rows={3}
-              ></textarea>
-            </div>
-            <div className="mb-3">
-              <label htmlFor="start_time" className="block text-xs font-medium text-gray-700">Start Time</label>
-              <input
-                type="datetime-local"
-                id="start_time"
-                name="start_time"
-                defaultValue={isEdit ? currentProject?.start_time.split('.')[0] : ''}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                required
-              />
-            </div>
-            <div className="mb-3">
-              <label htmlFor="end_time" className="block text-xs font-medium text-gray-700">End Time</label>
-              <input
-                type="datetime-local"
-                id="end_time"
-                name="end_time"
-                defaultValue={isEdit ? currentProject?.end_time.split('.')[0] : ''}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                required
-              />
-            </div>
-            <div className="mb-3 relative">
-              <label htmlFor="enable" className="block text-xs font-medium text-gray-700">Status</label>
-              <div className="relative">
-                <select
-                  id="enable"
-                  name="enable"
-                  defaultValue={isEdit ? (currentProject?.enable ? 'true' : 'false') : 'true'}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                >
-                  <option value="true">Active</option>
-                  <option value="false">Inactive</option>
-                </select>
-              </div>
-            </div>
-            <div className="mb-3">
-              <label htmlFor="note" className="block text-xs font-medium text-gray-700">Note</label>
-              <textarea
-                id="note"
-                name="note"
-                defaultValue={isEdit ? currentProject?.note : ''}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
-                rows={3}
-              
-              ></textarea>
-            </div>
-            <div className="mb-3">
               <label htmlFor="own_tasks" className="block text-xs font-medium text-gray-700 mb-1">Tasks</label>
               <Listbox value={selectedTasks} onChange={setSelectedTasks} multiple>
                 <div className="relative mt-1">
@@ -434,6 +377,63 @@ export default function ProjectCRUD() {
                   </Transition>
                 </div>
               </Listbox>
+            </div>
+            <div className="mb-3">
+              <label htmlFor="description" className="block text-xs font-medium text-gray-700">Description</label>
+              <textarea
+                id="description"
+                name="description"
+                defaultValue={isEdit ? currentProject?.description : ''}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                rows={3}
+              ></textarea>
+            </div>
+            <div className="mb-3">
+              <label htmlFor="start_time" className="block text-xs font-medium text-gray-700">Start Time</label>
+              <input
+                type="datetime-local"
+                id="start_time"
+                name="start_time"
+                defaultValue={isEdit ? currentProject?.start_time.split('.')[0] : ''}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                required
+              />
+            </div>
+            <div className="mb-3">
+              <label htmlFor="end_time" className="block text-xs font-medium text-gray-700">End Time</label>
+              <input
+                type="datetime-local"
+                id="end_time"
+                name="end_time"
+                defaultValue={isEdit ? currentProject?.end_time.split('.')[0] : ''}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                required
+              />
+            </div>
+            <div className="mb-3 relative">
+              <label htmlFor="enable" className="block text-xs font-medium text-gray-700">Status</label>
+              <div className="relative">
+                <select
+                  id="enable"
+                  name="enable"
+                  defaultValue={isEdit ? (currentProject?.enable ? 'true' : 'false') : 'true'}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                >
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </select>
+              </div>
+            </div>
+            <div className="mb-3">
+              <label htmlFor="note" className="block text-xs font-medium text-gray-700">Note</label>
+              <textarea
+                id="note"
+                name="note"
+                defaultValue={isEdit ? currentProject?.note : ''}
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
+                rows={3}
+              
+              ></textarea>
             </div>
             <div className="flex justify-end space-x-3">
               <button

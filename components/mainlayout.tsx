@@ -1,7 +1,6 @@
 'use client'
-
 import * as React from "react"
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
@@ -80,6 +79,48 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
   const [userInfo, setUserInfo] = React.useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<{ type: 'info' | 'success' | 'warning' | 'error', content: string } | null>(null)
+
+  useEffect(() => {
+    const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
+
+    // 監聽 users 集合的新增資料事件
+    const subscribeToUserAdd = async () => {
+      pb.collection('users').subscribe('*', (e) => {
+        if (e.action === 'create') {
+          console.log("新增的使用者資料：", e.record)
+          setMessage({ type: 'success', content: `新使用者已新增：${e.record.name}` })
+        }
+      })
+    }
+
+    subscribeToUserAdd()
+
+    // 清理訂閱
+    return () => {
+      pb.collection('users').unsubscribe('*')
+    }
+  }, [])
+
+  const FallbackMessage = ({ message, duration, onClose }: { message: string, duration: number, onClose: () => void }) => {
+    useEffect(() => {
+      const timer = setTimeout(onClose, duration);
+      return () => clearTimeout(timer);
+    }, [duration, onClose]);
+  
+    return (
+      <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4" role="alert">
+        <p>{message}</p>
+      </div>
+    );
+  };
+  
+  const MessageComponent = {
+    info: InfoMessage || FallbackMessage,
+    success: SuccessMessage || FallbackMessage,
+    warning: WarningMessage || FallbackMessage,
+    error: ErrorMessage || FallbackMessage
+  };
+
 
   function handleLogout() {
     const pb = new PocketBase(process.env.NEXT_PUBLIC_POCKETBASE_URL)
@@ -258,6 +299,15 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           )}
         </DialogContent>
       </Dialog>
+      {message && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 mt-4">
+          {React.createElement(MessageComponent[message.type], {
+            message: message.content,
+            duration: 5000,
+            onClose: () => setMessage(null)
+          })}
+        </div>
+      )}
     </div>
   )
 }
