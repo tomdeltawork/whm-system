@@ -10,6 +10,8 @@ import PocketBase, { RecordModel } from 'pocketbase'
 import { useSearchParams } from 'next/navigation'
 import debounce from 'lodash/debounce'
 import React from 'react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 type Work = {
   id: string
@@ -157,6 +159,9 @@ function WorkContent() {
 
   const searchParams = useSearchParams()
   const initialProjectId = searchParams.get('project_id')
+
+  const [date, setDate] = useState<Date>(new Date())
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -377,7 +382,7 @@ function WorkContent() {
           const viewportHeight = window.innerHeight
           const modalHeight = modalContent.getBoundingClientRect().height
           if (modalHeight > viewportHeight) {
-            modalContent.style.height = `${viewportHeight - 40}px` // 40px for some padding
+            modalContent.style.height =   `${viewportHeight - 40}px` // 40px for some padding
             modalContent.style.overflowY = 'auto'
           } else {
             modalContent.style.height = 'auto'
@@ -390,7 +395,6 @@ function WorkContent() {
     window.addEventListener('resize', handleResize)
     handleResize() // 
 
-
     return () => window.removeEventListener('resize', handleResize)
   }, [isAddModalOpen, isEditModalOpen])
 
@@ -398,11 +402,13 @@ function WorkContent() {
     setCurrentPage(newPage)
   }
 
-  const openAddModal = () => {
+  const openAddModal = (selectedDate?: Date) => {
     setSelectedProject(null)
     setSelectedTask(null)
     setAttachedFiles([])
-    
+    if (selectedDate) {
+      setSelectedDate(selectedDate)
+    }
     setIsAddModalOpen(true)
   }
 
@@ -411,12 +417,12 @@ function WorkContent() {
     setSelectedProject(projects.find(p => p.id === work.own_projects) || null)
     setSelectedTask(tasks.find(t => t.id === work.own_tasks) || null)
     setAttachedFiles(work.expand?.attach_files || [])
-    
     setIsEditModalOpen(true)
   }
 
   const closeAddModal = () => {
     setIsAddModalOpen(false)
+    setSelectedDate(null)
   }
 
   const closeEditModal = () => {
@@ -451,7 +457,6 @@ function WorkContent() {
           note: record.note || ''
         }])
       }
-      
       
       setMessage({ type: 'success', content: 'Files uploaded successfully' })
     } catch (error: any) {
@@ -660,7 +665,7 @@ function WorkContent() {
                 type="datetime-local"
                 id="start_date"
                 name="start_date"
-                defaultValue={isEdit ? currentWork?.start_date.split('.')[0] : ''}
+                defaultValue={isEdit ? currentWork?.start_date.split('.')[0] : selectedDate?.toISOString().split('.')[0]}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 required
               />
@@ -671,7 +676,7 @@ function WorkContent() {
                 type="datetime-local"
                 id="end_date"
                 name="end_date"
-                defaultValue={isEdit ? currentWork?.end_date.split('.')[0] : ''}
+                defaultValue={isEdit ? currentWork?.end_date.split('.')[0] : selectedDate?.toISOString().split('.')[0]}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 transition-all duration-200 ease-in-out hover:border-gray-400"
                 required
               />
@@ -740,116 +745,210 @@ function WorkContent() {
     )
   }
 
+  const renderCalendar = () => {
+    const daysInMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+    const weeks = Math.ceil((daysInMonth + firstDayOfMonth) / 7);
+
+    return (
+      <div className="grid grid-cols-7 gap-1">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+          <div key={day} className="text-center font-semibold p-2">{day}</div>
+        ))}
+        {Array.from({ length: weeks * 7 }).map((_, index) => {
+          const dayNumber = index - firstDayOfMonth + 1;
+          const isCurrentMonth = dayNumber > 0 && dayNumber <= daysInMonth;
+          const cellDate = new Date(date.getFullYear(), date.getMonth(), dayNumber);
+          const workForDay = works.find(work => {
+            const workDate = new Date(work.start_date);
+            return workDate.getDate() === dayNumber && 
+                   workDate.getMonth() === date.getMonth() && 
+                   workDate.getFullYear() === date.getFullYear();
+          });
+
+          return (
+            <div
+              key={index}
+              className={`border p-2 h-24 overflow-hidden ${isCurrentMonth ? 'bg-white' : 'bg-gray-100'} cursor-pointer hover:bg-gray-200 transition-colors duration-200`}
+              onClick={() => isCurrentMonth && openAddModal(cellDate)}
+            >
+              {isCurrentMonth && (
+                <>
+                  <div className="font-semibold">{dayNumber}</div>
+                  {workForDay && (
+                    <div className="text-xs mt-1 truncate text-blue-600">
+                      {workForDay.name}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 text-sm">
       <GlobalStyles />
       <div className="mx-auto bg-white rounded-lg shadow-md overflow-hidden">
         <div className="p-4">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-xl font-bold text-gray-900">Works</h1>
-            <button
-              onClick={openAddModal}
-              className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 flex items-center transition duration-300 ease-in-out"
-            >
-              <PlusIcon className="w-4 h-4 mr-1" />
-              Add Work
-            </button>
-          </div>
+          <Tabs defaultValue="work" className="w-full h-full">
+            <TabsList>
+              <TabsTrigger value="work">Table</TabsTrigger>
+              <TabsTrigger value="calendar">Calendar</TabsTrigger>
+            </TabsList>
+            <TabsContent value="work" className="h-[calc(100vh-120px)] overflow-auto">
+              <div className="flex justify-between items-center mb-4">
+                {/* <h1 className="text-xl font-bold text-gray-900">Works</h1> */}
+                <h1 className="text-xl font-bold text-gray-900"></h1>
+                <button
+                  onClick={() => openAddModal()}
+                  className="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 flex items-center transition duration-300 ease-in-out"
+                >
+                  <PlusIcon className="w-4 h-4 mr-1" />
+                  Add Work
+                </button>
+              </div>
 
-          <div className="mb-4 flex flex-wrap gap-4">
-            <div className="w-56">
-              <label htmlFor="project-filter" className="block text-xs font-medium text-gray-700 mb-1">Filter by Project</label>
-              <select
-                id="project-filter"
-                value={filterProject?.id || ''}
-                onChange={(e) => handleFilterChange('project', projects.find(p => p.id === e.target.value) || null)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-              >
-                <option value="">All Projects</option>
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>{project.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="start-date-filter" className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
-              <input
-                type="date"
-                id="start-date-filter"
-                value={filterStartDate}
-                onChange={(e) => handleFilterChange('startDate', e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-              />
-            </div>
-            <div>
-              <label htmlFor="end-date-filter" className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
-              <input
-                type="date"
-                id="end-date-filter"
-                value={filterEndDate}
-                onChange={(e) => handleFilterChange('endDate', e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-              />
-            </div>
-          </div>
+              <div className="mb-4 flex flex-wrap gap-4">
+                <div className="w-56">
+                  <label htmlFor="project-filter" className="block text-xs font-medium text-gray-700 mb-1">Filter by Project</label>
+                  <select
+                    id="project-filter"
+                    value={filterProject?.id || ''}
+                    onChange={(e) => handleFilterChange('project', projects.find(p => p.id === e.target.value) || null)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                  >
+                    <option value="">All Projects</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>{project.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="start-date-filter" className="block text-xs font-medium text-gray-700 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    id="start-date-filter"
+                    value={filterStartDate}
+                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="end-date-filter" className="block text-xs font-medium text-gray-700 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    id="end-date-filter"
+                    value={filterEndDate}
+                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                  />
+                </div>
+              </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
-                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {works.map((work) => (
-                  <tr key={work.id}>
-                    <td className="px-4 py-2 whitespace-nowrap">{work.name}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{work.expand?.own_projects?.name || 'N/A'}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{work.expand?.own_tasks?.name || 'N/A'}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{new Date(work.start_date).toLocaleString()}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{new Date(work.end_date).toLocaleString()}</td>
-                    <td className="px-4 py-2 whitespace-nowrap">{work.hour}</td>
-                    <td className="px-4 py-2 whitespace-nowrap text-xs font-medium">
-                      <button onClick={() => openEditModal(work)} className="text-indigo-600 hover:text-indigo-900 mr-3 transition duration-300 ease-in-out">
-                        <PencilIcon className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => deleteWork(work.id)} className="text-red-600 hover:text-red-900 transition duration-300 ease-in-out">
-                        <TrashIcon className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Task</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hours</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {works.map((work) => (
+                      <tr key={work.id}>
+                        <td className="px-4 py-2 whitespace-nowrap">{work.name}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{work.expand?.own_projects?.name || 'N/A'}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{work.expand?.own_tasks?.name || 'N/A'}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{new Date(work.start_date).toLocaleString()}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{new Date(work.end_date).toLocaleString()}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{work.hour}</td>
+                        <td className="px-4 py-2 whitespace-nowrap text-xs font-medium">
+                          <button onClick={() => openEditModal(work)} className="text-indigo-600 hover:text-indigo-900 mr-3 transition duration-300 ease-in-out">
+                            <PencilIcon className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => deleteWork(work.id)} className="text-red-600 hover:text-red-900 transition duration-300 ease-in-out">
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-          <div className="flex items-center justify-between mt-4">
-            <div className="flex items-center">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="mr-2 px-2 py-1 border rounded text-xs disabled:opacity-50 transition duration-300 ease-in-out"
-              >
-                <ChevronLeftIcon className="w-4 h-4" />
-              </button>
-              <span className="text-xs text-gray-700">
-                Page {currentPage} of {totalPages}
-              </span>
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="ml-2 px-2 py-1 border rounded text-xs disabled:opacity-50 transition duration-300 ease-in-out"
-              >
-                <ChevronRightIcon className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+              <div className="flex items-center justify-between mt-4">
+                <div className="flex items-center">
+                  <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="mr-2 px-2 py-1 border rounded text-xs disabled:opacity-50 transition duration-300 ease-in-out"
+                  >
+                    <ChevronLeftIcon className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs text-gray-700">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="ml-2 px-2 py-1 border rounded text-xs disabled:opacity-50 transition duration-300 ease-in-out"
+                  >
+                    <ChevronRightIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </TabsContent>
+            <TabsContent value="calendar" className="h-[calc(100vh-120px)] overflow-auto">
+              <div className="p-4">
+                <h2 className="text-lg font-semibold mb-4">Calendar</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <Select
+                    value={date.getMonth().toString()}
+                    onValueChange={(value) => setDate(new Date(date.getFullYear(), parseInt(value), 1))}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Select a month" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <SelectItem key={i} value={i.toString()}>
+                          {new Date(0, i).toLocaleString('default', { month: 'long' })}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={date.getFullYear().toString()}
+                    onValueChange={(value) => setDate(new Date(parseInt(value), date.getMonth(), 1))}
+                  >
+                    <SelectTrigger className="w-[180px] ms-4">
+                      <SelectValue placeholder="Select a year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 10 }, (_, i) => {
+                        const year = new Date().getFullYear() - 5 + i
+                        return (
+                          <SelectItem key={year} value={year.toString()}>
+                            {year}
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {renderCalendar()}
+              </div>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
 
